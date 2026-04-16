@@ -1,48 +1,39 @@
-/**
- * RUNNER — Motor de execução de fluxos
- * Carrega um flow.json e executa nó por nó seguindo as edges.
- */
-
-const path = require('path');
-const fs = require('fs');
-
-// Carrega todos os tipos de nó disponíveis
 const nodes = {
-  http:    require('./nodes/http'),
-  webhook: require('./nodes/webhook'),
-  code:    require('./nodes/code'),
-  if:      require('./nodes/if'),
-  switch:  require('./nodes/switch'),
-  wait:    require('./nodes/wait'),
+  http:           require('./nodes/http'),
+  webhook:        require('./nodes/webhook'),
+  code:           require('./nodes/code'),
+  if:             require('./nodes/if'),
+  switch:         require('./nodes/switch'),
+  wait:           require('./nodes/wait'),
+  claude:         require('./nodes/claude'),
+  transform:      require('./nodes/transform'),
+  merge:          require('./nodes/merge'),
+  loop:           require('./nodes/loop'),
+  'set-variable': require('./nodes/set-variable'),
+  log:            require('./nodes/log'),
 };
 
-/**
- * Executa um fluxo completo.
- * @param {object} flow      - Objeto do flow (nodes + edges)
- * @param {object} input     - Dados iniciais (ex: body do webhook)
- * @param {string} startId   - ID do nó inicial (padrão: primeiro nó do array)
- * @returns {object}         - Resultado do último nó executado
- */
 async function runFlow(flow, input = {}, startId = null) {
   const nodeMap = {};
-  for (const node of flow.nodes) {
-    nodeMap[node.id] = node;
-  }
+  for (const node of flow.nodes) nodeMap[node.id] = node;
 
-  // Monta mapa de edges: { "nodeId": [{ to, branch }] }
   const edgeMap = {};
+  const incomingCount = {};
   for (const edge of (flow.edges || [])) {
     if (!edgeMap[edge.from]) edgeMap[edge.from] = [];
     edgeMap[edge.from].push({ to: edge.to, branch: edge.branch });
+    incomingCount[edge.to] = (incomingCount[edge.to] || 0) + 1;
   }
+
+  const context = { variables: {}, logs: [], nodeOutputs: {}, incomingCount };
 
   const currentId = startId || flow.nodes[0]?.id;
   if (!currentId) throw new Error('Flow sem nós definidos');
 
-  return await executeNode(currentId, input, nodeMap, edgeMap, 0);
+  return await executeNode(currentId, input, nodeMap, edgeMap, context, 0);
 }
 
-async function executeNode(nodeId, input, nodeMap, edgeMap, depth) {
+async function executeNode(nodeId, input, nodeMap, edgeMap, context, depth) {
   if (depth > 50) throw new Error('Limite de execução atingido (loop infinito?)');
 
   const node = nodeMap[nodeId];
@@ -55,20 +46,23 @@ async function executeNode(nodeId, input, nodeMap, edgeMap, depth) {
 
   let output;
   try {
-    output = await handler.run(node.config || {}, input);
+    output = await handler.run(node.config || {}, input, context, node.id);
   } catch (err) {
     console.error(`[ERRO] Nó "${node.id}": ${err.message}`);
     throw err;
   }
 
-  // Descobre próximo(s) nó(s)
+  context.nodeOutputs[nodeId] = output;
+
+  // Branch pending — this parallel path is waiting for other branches to arrive at merge
+  if (output && output._mergePending) return output;
+
   const edges = edgeMap[nodeId] || [];
   if (edges.length === 0) {
     console.log(`[FIM] Fluxo concluído no nó: ${nodeId}`);
     return output;
   }
 
-  // Se o output tem _branch (nós IF/SWITCH), filtra a edge correta
   let nextEdges = edges;
   if (output._branch !== undefined) {
     nextEdges = edges.filter(e => e.branch === output._branch);
@@ -78,9 +72,17 @@ async function executeNode(nodeId, input, nodeMap, edgeMap, depth) {
     }
   }
 
-  // Executa próximo nó (primeiro da lista para fluxo linear)
-  const nextEdge = nextEdges[0];
-  return await executeNode(nextEdge.to, output, nodeMap, edgeMap, depth + 1);
+  // Execução paralela quando há múltiplas edges sem branch
+  if (nextEdges.length > 1) {
+    const results = await Promise.all(
+      nextEdges.map(edge => executeNode(edge.to, output, nodeMap, edgeMap, context, depth + 1))
+    );
+    // Filter out pending branches, return the meaningful result
+    const resolved = results.filter(r => !r?._mergePending);
+    return resolved.length === 1 ? resolved[0] : resolved.length > 1 ? resolved : results[0];
+  }
+
+  return await executeNode(nextEdges[0].to, output, nodeMap, edgeMap, context, depth + 1);
 }
 
 module.exports = { runFlow };

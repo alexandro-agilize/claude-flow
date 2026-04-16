@@ -1,0 +1,52 @@
+{
+  "id": "teste-transform",
+  "nodes": [
+    {
+      "id": "entrada",
+      "type": "webhook",
+      "config": {}
+    },
+    {
+      "id": "extrai-campos",
+      "type": "transform",
+      "config": {
+        "mode": "pick",
+        "fields": ["nome", "email", "idade"]
+      }
+    },
+    {
+      "id": "renomeia",
+      "type": "transform",
+      "config": {
+        "mode": "set",
+        "path": "ativo",
+        "expression": "input.idade >= 18"
+      }
+    },
+    {
+      "id": "filtra-lista",
+      "type": "transform",
+      "config": {
+        "mode": "filter",
+        "field": "items",
+        "predicate": "item.valor > 100"
+      }
+    },
+    {
+      "id": "saida",
+      "type": "log",
+      "config": {
+        "level": "info",
+        "message": "Transform concluído",
+        "includeInput": true,
+        "persist": false
+      }
+    }
+  ],
+  "edges": [
+    { "from": "entrada", "to": "extrai-campos" },
+    { "from": "extrai-campos", "to": "renomeia" },
+    { "from": "renomeia", "to": "filtra-lista" },
+    { "from": "filtra-lista", "to": "saida" }
+  ]
+}

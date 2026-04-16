@@ -1,0 +1,41 @@
+{
+  "id": "teste-parallel",
+  "nodes": [
+    {
+      "id": "entrada",
+      "type": "webhook",
+      "config": {}
+    },
+    {
+      "id": "branch-a",
+      "type": "set-variable",
+      "config": { "name": "fonteA", "value": "resultado-do-branch-A" }
+    },
+    {
+      "id": "branch-b",
+      "type": "set-variable",
+      "config": { "name": "fonteB", "value": "resultado-do-branch-B" }
+    },
+    {
+      "id": "junta",
+      "type": "merge",
+      "config": { "strategy": "spread" }
+    },
+    {
+      "id": "saida",
+      "type": "log",
+      "config": {
+        "level": "info",
+        "message": "Merge concluído — fonteA: {{fonteA}}, fonteB: {{fonteB}}",
+        "persist": false
+      }
+    }
+  ],
+  "edges": [
+    { "from": "entrada",  "to": "branch-a" },
+    { "from": "entrada",  "to": "branch-b" },
+    { "from": "branch-a", "to": "junta" },
+    { "from": "branch-b", "to": "junta" },
+    { "from": "junta",    "to": "saida" }
+  ]
+}
