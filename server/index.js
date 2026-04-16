@@ -1,9 +1,6 @@
-/**
- * SERVER — API HTTP + receptor de Webhooks
- * Roda na porta 3000 (ou PORT do ambiente).
- */
-
 const express = require('express');
+const path = require('path');
+const fs = require('fs');
 const { runFlow } = require('../engine/runner');
 const { enqueue, size } = require('../engine/queue');
 const { listFlows, getFlow, createFlow, updateFlow, deleteFlow } = require('../db/flows');
@@ -11,16 +8,27 @@ const { createExecution, finishExecution, failExecution, logNode, listExecutions
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const FRONTEND_DIST = path.join(__dirname, '..', 'frontend', 'dist');
 
 app.use(express.json());
 
-// ─── Status ────────────────────────────────────────────────────────────────
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  if (req.method === 'OPTIONS') return res.sendStatus(200);
+  next();
+});
+
 app.get('/', (req, res) => {
   res.json({
     status: 'online',
     message: 'claude-flow está rodando',
     endpoints: {
       flows: 'GET /flows',
+      flow: 'GET /flows/:id',
+      createFlow: 'POST /flows',
+      updateFlow: 'PUT /flows/:id',
       run: 'POST /run/:flowId',
       webhook: 'POST /webhook/:flowId',
       executions: 'GET /executions',
@@ -162,6 +170,14 @@ app.get('/queue/:name', (req, res) => {
   const count = size(req.params.name);
   res.json({ queue: req.params.name, pending: count });
 });
+
+// ─── Frontend estático (produção) ───────────────────────────────────────────
+if (fs.existsSync(FRONTEND_DIST)) {
+  app.use(express.static(FRONTEND_DIST));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(FRONTEND_DIST, 'index.html'));
+  });
+}
 
 // ─── Start ──────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {

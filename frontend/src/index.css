@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.react-flow__node {
+  font-family: inherit;
+}
+
+.react-flow__handle {
+  border-radius: 50%;
+}
+
+.react-flow__edge-label-bg {
+  fill: #ede9fe;
+  rx: 3;
+}
+
+.react-flow__controls button {
+  border-bottom: 1px solid #e5e7eb;
+}
