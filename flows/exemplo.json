@@ -1,0 +1,91 @@
+{
+  "id": "exemplo",
+  "name": "Fluxo de Exemplo",
+  "description": "Recebe webhook → faz HTTP request → verifica status → processa resultado → aguarda",
+  "nodes": [
+    {
+      "id": "inicio",
+      "type": "webhook",
+      "name": "Recebe Requisição",
+      "config": {
+        "method": "POST"
+      }
+    },
+    {
+      "id": "busca-dados",
+      "type": "http",
+      "name": "Busca dados da API",
+      "config": {
+        "url": "https://jsonplaceholder.typicode.com/posts/1",
+        "method": "GET"
+      }
+    },
+    {
+      "id": "verifica-status",
+      "type": "if",
+      "name": "Deu certo?",
+      "config": {
+        "condition": "input.status === 200"
+      }
+    },
+    {
+      "id": "processa-sucesso",
+      "type": "code",
+      "name": "Processa resultado",
+      "config": {
+        "code": "return { titulo: input.data.title, id: input.data.id, processadoEm: new Date().toISOString() };"
+      }
+    },
+    {
+      "id": "aguarda",
+      "type": "wait",
+      "name": "Aguarda 1 segundo",
+      "config": {
+        "ms": 1000
+      }
+    },
+    {
+      "id": "classifica",
+      "type": "switch",
+      "name": "Classifica por ID",
+      "config": {
+        "value": "input.id <= 5 ? 'pequeno' : 'grande'",
+        "cases": ["pequeno", "grande"]
+      }
+    },
+    {
+      "id": "resultado-pequeno",
+      "type": "code",
+      "name": "ID pequeno",
+      "config": {
+        "code": "return { ...input, categoria: 'primeiros posts', mensagem: 'Este é um dos primeiros posts!' };"
+      }
+    },
+    {
+      "id": "resultado-grande",
+      "type": "code",
+      "name": "ID grande",
+      "config": {
+        "code": "return { ...input, categoria: 'posts recentes', mensagem: 'Post mais recente.' };"
+      }
+    },
+    {
+      "id": "erro",
+      "type": "code",
+      "name": "Trata erro",
+      "config": {
+        "code": "return { erro: true, statusRecebido: input.status, mensagem: 'API retornou erro' };"
+      }
+    }
+  ],
+  "edges": [
+    { "from": "inicio",          "to": "busca-dados" },
+    { "from": "busca-dados",     "to": "verifica-status" },
+    { "from": "verifica-status", "to": "processa-sucesso", "branch": "true" },
+    { "from": "verifica-status", "to": "erro",             "branch": "false" },
+    { "from": "processa-sucesso","to": "aguarda" },
+    { "from": "aguarda",         "to": "classifica" },
+    { "from": "classifica",      "to": "resultado-pequeno", "branch": "pequeno" },
+    { "from": "classifica",      "to": "resultado-grande",  "branch": "grande" }
+  ]
+}
