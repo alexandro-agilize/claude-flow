@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(netstat *)",
+      "Bash(npm install)",
+      "Bash(npm install *)",
+      "Bash(npm run dev)",
+      "Bash(npm run build)",
+      "Bash(node server/index.js)",
+      "Bash(npx prisma generate)",
+      "Bash(npx prisma migrate deploy)",
+      "Bash(npx prisma db push)",
+      "Bash(taskkill *)",
+      "Bash(docker compose up *)",
+      "Bash(docker compose down)",
+      "Bash(docker compose build *)",
+      "Bash(docker compose logs *)"
+    ]
+  }
+}
