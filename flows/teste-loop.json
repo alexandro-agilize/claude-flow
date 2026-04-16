@@ -1,0 +1,40 @@
+{
+  "id": "teste-loop",
+  "nodes": [
+    {
+      "id": "entrada",
+      "type": "webhook",
+      "config": {}
+    },
+    {
+      "id": "prepara-lista",
+      "type": "code",
+      "config": {
+        "code": "return { ...input, items: input.items || [1, 2, 3, 4, 5] };"
+      }
+    },
+    {
+      "id": "processa-itens",
+      "type": "loop",
+      "config": {
+        "field": "items",
+        "code": "return { valor: item * 2, original: item };"
+      }
+    },
+    {
+      "id": "saida",
+      "type": "log",
+      "config": {
+        "level": "info",
+        "message": "Loop processou {{results.length}} itens",
+        "includeInput": true,
+        "persist": false
+      }
+    }
+  ],
+  "edges": [
+    { "from": "entrada", "to": "prepara-lista" },
+    { "from": "prepara-lista", "to": "processa-itens" },
+    { "from": "processa-itens", "to": "saida" }
+  ]
+}

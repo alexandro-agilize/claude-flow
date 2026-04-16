@@ -1,0 +1,42 @@
+{
+  "id": "teste-claude",
+  "nodes": [
+    {
+      "id": "entrada",
+      "type": "webhook",
+      "config": {}
+    },
+    {
+      "id": "set-tema",
+      "type": "set-variable",
+      "config": {
+        "name": "tema",
+        "expression": "input.tema || 'automação de workflows'"
+      }
+    },
+    {
+      "id": "ask-claude",
+      "type": "claude",
+      "config": {
+        "system": "Você é um assistente especialista em automação. Responda sempre em português, de forma concisa.",
+        "prompt": "Explique em 2 frases o conceito de: {{tema}}",
+        "maxTokens": 256
+      }
+    },
+    {
+      "id": "log-resultado",
+      "type": "log",
+      "config": {
+        "level": "info",
+        "message": "Claude respondeu: {{output}}",
+        "persist": true,
+        "file": "claude-executions"
+      }
+    }
+  ],
+  "edges": [
+    { "from": "entrada", "to": "set-tema" },
+    { "from": "set-tema", "to": "ask-claude" },
+    { "from": "ask-claude", "to": "log-resultado" }
+  ]
+}

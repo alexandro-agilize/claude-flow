@@ -1,47 +1,42 @@
-/**
- * RUNNER — Motor de execução de fluxos
- * Carrega um flow.json e executa nó por nó seguindo as edges.
- */
-
 const path = require('path');
 const fs = require('fs');
 
 const nodes = {
-  http:    require('./nodes/http'),
-  webhook: require('./nodes/webhook'),
-  code:    require('./nodes/code'),
-  if:      require('./nodes/if'),
-  switch:  require('./nodes/switch'),
-  wait:    require('./nodes/wait'),
+  http:           require('./nodes/http'),
+  webhook:        require('./nodes/webhook'),
+  code:           require('./nodes/code'),
+  if:             require('./nodes/if'),
+  switch:         require('./nodes/switch'),
+  wait:           require('./nodes/wait'),
+  claude:         require('./nodes/claude'),
+  transform:      require('./nodes/transform'),
+  merge:          require('./nodes/merge'),
+  loop:           require('./nodes/loop'),
+  'set-variable': require('./nodes/set-variable'),
+  log:            require('./nodes/log'),
 };
 
-/**
- * Executa um fluxo completo.
- * @param {object} flow      - Objeto do flow (nodes + edges)
- * @param {object} input     - Dados iniciais (ex: body do webhook)
- * @param {string} startId   - ID do nó inicial (padrão: primeiro nó do array)
- * @param {object} options   - { onNodeComplete(nodeId, nodeType, { input, output, error, startedAt, durationMs }) }
- * @returns {object}         - Resultado do último nó executado
- */
 async function runFlow(flow, input = {}, startId = null, options = {}) {
   const nodeMap = {};
-  for (const node of flow.nodes) {
-    nodeMap[node.id] = node;
-  }
+  for (const node of flow.nodes) nodeMap[node.id] = node;
 
   const edgeMap = {};
+  const incomingCount = {};
   for (const edge of (flow.edges || [])) {
     if (!edgeMap[edge.from]) edgeMap[edge.from] = [];
     edgeMap[edge.from].push({ to: edge.to, branch: edge.branch });
+    incomingCount[edge.to] = (incomingCount[edge.to] || 0) + 1;
   }
+
+  const context = { variables: {}, logs: [], nodeOutputs: {}, incomingCount };
 
   const currentId = startId || flow.nodes[0]?.id;
   if (!currentId) throw new Error('Flow sem nós definidos');
 
-  return await executeNode(currentId, input, nodeMap, edgeMap, 0, options);
+  return await executeNode(currentId, input, nodeMap, edgeMap, context, 0, options);
 }
 
-async function executeNode(nodeId, input, nodeMap, edgeMap, depth, hooks = {}) {
+async function executeNode(nodeId, input, nodeMap, edgeMap, context, depth, hooks = {}) {
   if (depth > 50) throw new Error('Limite de execução atingido (loop infinito?)');
 
   const node = nodeMap[nodeId];
@@ -57,7 +52,7 @@ async function executeNode(nodeId, input, nodeMap, edgeMap, depth, hooks = {}) {
 
   let output;
   try {
-    output = await handler.run(node.config || {}, input);
+    output = await handler.run(node.config || {}, input, context, node.id);
   } catch (err) {
     const durationMs = Date.now() - startTime;
     console.error(`[ERRO] Nó "${node.id}": ${err.message}`);
@@ -71,6 +66,10 @@ async function executeNode(nodeId, input, nodeMap, edgeMap, depth, hooks = {}) {
   if (hooks.onNodeComplete) {
     await hooks.onNodeComplete(node.id, node.type, { input, output, error: null, startedAt, durationMs }).catch(() => {});
   }
+
+  context.nodeOutputs[nodeId] = output;
+
+  if (output && output._mergePending) return output;
 
   const edges = edgeMap[nodeId] || [];
   if (edges.length === 0) {
@@ -87,8 +86,15 @@ async function executeNode(nodeId, input, nodeMap, edgeMap, depth, hooks = {}) {
     }
   }
 
-  const nextEdge = nextEdges[0];
-  return await executeNode(nextEdge.to, output, nodeMap, edgeMap, depth + 1, hooks);
+  if (nextEdges.length > 1) {
+    const results = await Promise.all(
+      nextEdges.map(edge => executeNode(edge.to, output, nodeMap, edgeMap, context, depth + 1, hooks))
+    );
+    const resolved = results.filter(r => !r?._mergePending);
+    return resolved.length === 1 ? resolved[0] : resolved.length > 1 ? resolved : results[0];
+  }
+
+  return await executeNode(nextEdges[0].to, output, nodeMap, edgeMap, context, depth + 1, hooks);
 }
 
 module.exports = { runFlow };
