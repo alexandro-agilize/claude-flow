@@ -3,4 +3,5 @@ queue/*.jsonl
 .env
 db/*.db
 db/*.db-journal
+prisma/db/
 

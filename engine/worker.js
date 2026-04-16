@@ -1,23 +1,19 @@
 /**
  * WORKER — Processa jobs da fila continuamente
- * Este é o processo que roda em terminais separados (e em worktrees separados).
- * Cada worker pega um job da fila, executa o fluxo, e repete.
  *
  * Como usar:
  *   node engine/worker.js
- *   node engine/worker.js --queue minha-fila   (fila customizada)
+ *   node engine/worker.js --queue minha-fila
  */
 
 const { dequeue, size } = require('./queue');
 const { runFlow } = require('./runner');
-const fs = require('fs');
-const path = require('path');
+const { getFlow } = require('../db/flows');
+const { createExecution, finishExecution, failExecution, logNode } = require('../db/executions');
 
 const QUEUE_NAME = process.argv.includes('--queue')
   ? process.argv[process.argv.indexOf('--queue') + 1]
   : 'flow-executions';
-
-const FLOWS_DIR = path.join(__dirname, '..', 'flows');
 
 console.log(`\n====================================`);
 console.log(` Worker iniciado`);
@@ -29,29 +25,50 @@ async function processNext() {
   const job = dequeue(QUEUE_NAME);
 
   if (!job) {
-    // Fila vazia — aguarda 1 segundo e tenta novamente
     setTimeout(processNext, 1000);
     return;
   }
 
   console.log(`\n[JOB] Processando: ${job.flowId}`);
-  console.log(`[JOB] Input:`, JSON.stringify(job.input, null, 2));
+
+  const flow = await getFlow(job.flowId).catch(() => null);
+  if (!flow) {
+    console.error(`[ERRO] Flow não encontrado: ${job.flowId}`);
+    setImmediate(processNext);
+    return;
+  }
+
+  // Retoma execução criada no webhook ou cria uma nova
+  let executionId = job.executionId;
+  try {
+    if (executionId) {
+      const prisma = require('../db/client');
+      await prisma.execution.update({
+        where: { id: executionId },
+        data: { status: 'running' },
+      });
+    } else {
+      const execution = await createExecution(job.flowId, job.input || {});
+      executionId = execution.id;
+    }
+  } catch (err) {
+    console.warn('[DB] Falha ao atualizar execução:', err.message);
+  }
+
+  const hooks = executionId ? {
+    onNodeComplete: (nodeId, nodeType, info) =>
+      logNode(executionId, nodeId, nodeType, info),
+  } : {};
 
   try {
-    const flowFile = path.join(FLOWS_DIR, `${job.flowId}.json`);
-    if (!fs.existsSync(flowFile)) {
-      throw new Error(`Flow não encontrado: ${job.flowId}.json`);
-    }
-
-    const flow = JSON.parse(fs.readFileSync(flowFile, 'utf8'));
-    const result = await runFlow(flow, job.input || {});
-
+    const result = await runFlow(flow, job.input || {}, null, hooks);
+    if (executionId) await finishExecution(executionId, result).catch(() => {});
     console.log(`\n[OK] Resultado:`, JSON.stringify(result, null, 2));
   } catch (err) {
+    if (executionId) await failExecution(executionId, err).catch(() => {});
     console.error(`\n[ERRO]`, err.message);
   }
 
-  // Processa próximo job imediatamente
   setImmediate(processNext);
 }
 

@@ -1,24 +1,16 @@
 /**
  * SERVER — API HTTP + receptor de Webhooks
  * Roda na porta 3000 (ou PORT do ambiente).
- *
- * Endpoints:
- *   GET  /                          → status do servidor
- *   GET  /flows                     → lista todos os flows disponíveis
- *   POST /webhook/:flowId           → dispara um flow via webhook
- *   POST /run/:flowId               → executa um flow diretamente (síncrono)
- *   GET  /queue/:name               → quantos jobs estão na fila
  */
 
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
 const { runFlow } = require('../engine/runner');
 const { enqueue, size } = require('../engine/queue');
+const { listFlows, getFlow, createFlow, updateFlow, deleteFlow } = require('../db/flows');
+const { createExecution, finishExecution, failExecution, logNode, listExecutions, getExecution } = require('../db/executions');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const FLOWS_DIR = path.join(__dirname, '..', 'flows');
 
 app.use(express.json());
 
@@ -29,57 +21,139 @@ app.get('/', (req, res) => {
     message: 'claude-flow está rodando',
     endpoints: {
       flows: 'GET /flows',
-      webhook: 'POST /webhook/:flowId',
       run: 'POST /run/:flowId',
+      webhook: 'POST /webhook/:flowId',
+      executions: 'GET /executions',
       queue: 'GET /queue/:name',
     },
   });
 });
 
-// ─── Lista flows ────────────────────────────────────────────────────────────
-app.get('/flows', (req, res) => {
-  if (!fs.existsSync(FLOWS_DIR)) return res.json([]);
-  const files = fs.readdirSync(FLOWS_DIR).filter(f => f.endsWith('.json'));
-  const flows = files.map(f => ({
-    id: f.replace('.json', ''),
-    file: f,
-  }));
-  res.json(flows);
+// ─── Flows CRUD ─────────────────────────────────────────────────────────────
+
+app.get('/flows', async (req, res) => {
+  try {
+    res.json(await listFlows());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/flows', async (req, res) => {
+  try {
+    const data = req.body;
+    if (!data.id) return res.status(400).json({ error: 'Campo "id" obrigatório' });
+    if (!data.nodes) return res.status(400).json({ error: 'Campo "nodes" obrigatório' });
+    res.status(201).json(await createFlow(data));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/flows/:id', async (req, res) => {
+  try {
+    const flow = await getFlow(req.params.id);
+    if (!flow) return res.status(404).json({ error: `Flow "${req.params.id}" não encontrado` });
+    res.json(flow);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/flows/:id', async (req, res) => {
+  try {
+    res.json(await updateFlow(req.params.id, req.body));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/flows/:id', async (req, res) => {
+  try {
+    await deleteFlow(req.params.id);
+    res.json({ deleted: true, id: req.params.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Execuções ───────────────────────────────────────────────────────────────
+
+app.get('/executions', async (req, res) => {
+  try {
+    res.json(await listExecutions(req.query.flowId));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/executions/:id', async (req, res) => {
+  try {
+    const execution = await getExecution(req.params.id);
+    if (!execution) return res.status(404).json({ error: 'Execução não encontrada' });
+    res.json(execution);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/flows/:id/executions', async (req, res) => {
+  try {
+    res.json(await listExecutions(req.params.id));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ─── Webhook (assíncrono — coloca na fila) ──────────────────────────────────
-app.post('/webhook/:flowId', (req, res) => {
+app.post('/webhook/:flowId', async (req, res) => {
   const { flowId } = req.params;
+  const input = {
+    body: req.body,
+    query: req.query,
+    headers: req.headers,
+    method: req.method,
+    timestamp: new Date().toISOString(),
+  };
 
-  enqueue('flow-executions', {
-    flowId,
-    input: {
-      body: req.body,
-      query: req.query,
-      headers: req.headers,
-      method: req.method,
-      timestamp: new Date().toISOString(),
-    },
-  });
+  let executionId;
+  try {
+    const execution = await createExecution(flowId, input, 'pending');
+    executionId = execution.id;
+  } catch (err) {
+    console.warn('[DB] Falha ao registrar execução:', err.message);
+  }
 
-  res.json({ queued: true, flowId, message: 'Job adicionado à fila' });
+  enqueue('flow-executions', { flowId, input, executionId });
+  res.json({ queued: true, flowId, executionId, message: 'Job adicionado à fila' });
 });
 
 // ─── Run direto (síncrono) ──────────────────────────────────────────────────
 app.post('/run/:flowId', async (req, res) => {
   const { flowId } = req.params;
-  const flowFile = path.join(FLOWS_DIR, `${flowId}.json`);
 
-  if (!fs.existsSync(flowFile)) {
-    return res.status(404).json({ error: `Flow "${flowId}" não encontrado` });
+  const flow = await getFlow(flowId).catch(() => null);
+  if (!flow) return res.status(404).json({ error: `Flow "${flowId}" não encontrado` });
+
+  let execution;
+  try {
+    execution = await createExecution(flowId, req.body || {});
+  } catch (err) {
+    console.warn('[DB] Falha ao registrar execução:', err.message);
   }
 
+  const hooks = execution ? {
+    onNodeComplete: (nodeId, nodeType, info) =>
+      logNode(execution.id, nodeId, nodeType, info),
+  } : {};
+
   try {
-    const flow = JSON.parse(fs.readFileSync(flowFile, 'utf8'));
-    const result = await runFlow(flow, req.body || {});
-    res.json({ success: true, result });
+    const result = await runFlow(flow, req.body || {}, null, hooks);
+    if (execution) await finishExecution(execution.id, result).catch(() => {});
+    res.json({ success: true, executionId: execution?.id, result });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    if (execution) await failExecution(execution.id, err).catch(() => {});
+    res.status(500).json({ error: err.message, executionId: execution?.id });
   }
 });
 

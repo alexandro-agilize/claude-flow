@@ -1,0 +1,63 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Flow {
+  id          String   @id
+  name        String
+  description String?
+  definition  String
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  executions Execution[]
+  schedules  Schedule[]
+}
+
+model Execution {
+  id         String    @id @default(uuid())
+  flowId     String
+  status     String    @default("pending")
+  input      String?
+  output     String?
+  error      String?
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  flow Flow           @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  logs ExecutionLog[]
+}
+
+model ExecutionLog {
+  id          String    @id @default(uuid())
+  executionId String
+  nodeId      String
+  nodeType    String
+  status      String
+  input       String?
+  output      String?
+  error       String?
+  startedAt   DateTime
+  finishedAt  DateTime?
+  durationMs  Int?
+
+  execution Execution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+}
+
+model Schedule {
+  id        String    @id @default(uuid())
+  flowId    String
+  cron      String
+  enabled   Boolean   @default(true)
+  lastRunAt DateTime?
+  nextRunAt DateTime?
+  createdAt DateTime  @default(now())
+
+  flow Flow @relation(fields: [flowId], references: [id], onDelete: Cascade)
+}

@@ -6,11 +6,21 @@
   "scripts": {
     "start": "node server/index.js",
     "worker": "node engine/worker.js",
-    "dev": "node server/index.js"
+    "dev": "node server/index.js",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:generate": "prisma generate",
+    "db:studio": "prisma studio",
+    "db:reset": "prisma migrate reset",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@prisma/client": "^5.22.0",
     "express": "^4.18.2",
     "axios": "^1.6.0",
     "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "prisma": "^5.22.0"
   }
 }

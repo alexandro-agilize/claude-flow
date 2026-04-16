@@ -6,7 +6,6 @@
 const path = require('path');
 const fs = require('fs');
 
-// Carrega todos os tipos de nó disponíveis
 const nodes = {
   http:    require('./nodes/http'),
   webhook: require('./nodes/webhook'),
@@ -21,15 +20,15 @@ const nodes = {
  * @param {object} flow      - Objeto do flow (nodes + edges)
  * @param {object} input     - Dados iniciais (ex: body do webhook)
  * @param {string} startId   - ID do nó inicial (padrão: primeiro nó do array)
+ * @param {object} options   - { onNodeComplete(nodeId, nodeType, { input, output, error, startedAt, durationMs }) }
  * @returns {object}         - Resultado do último nó executado
  */
-async function runFlow(flow, input = {}, startId = null) {
+async function runFlow(flow, input = {}, startId = null, options = {}) {
   const nodeMap = {};
   for (const node of flow.nodes) {
     nodeMap[node.id] = node;
   }
 
-  // Monta mapa de edges: { "nodeId": [{ to, branch }] }
   const edgeMap = {};
   for (const edge of (flow.edges || [])) {
     if (!edgeMap[edge.from]) edgeMap[edge.from] = [];
@@ -39,10 +38,10 @@ async function runFlow(flow, input = {}, startId = null) {
   const currentId = startId || flow.nodes[0]?.id;
   if (!currentId) throw new Error('Flow sem nós definidos');
 
-  return await executeNode(currentId, input, nodeMap, edgeMap, 0);
+  return await executeNode(currentId, input, nodeMap, edgeMap, 0, options);
 }
 
-async function executeNode(nodeId, input, nodeMap, edgeMap, depth) {
+async function executeNode(nodeId, input, nodeMap, edgeMap, depth, hooks = {}) {
   if (depth > 50) throw new Error('Limite de execução atingido (loop infinito?)');
 
   const node = nodeMap[nodeId];
@@ -53,22 +52,32 @@ async function executeNode(nodeId, input, nodeMap, edgeMap, depth) {
 
   console.log(`[${depth}] Executando nó: ${node.id} (${node.type})`);
 
+  const startedAt = new Date();
+  const startTime = Date.now();
+
   let output;
   try {
     output = await handler.run(node.config || {}, input);
   } catch (err) {
+    const durationMs = Date.now() - startTime;
     console.error(`[ERRO] Nó "${node.id}": ${err.message}`);
+    if (hooks.onNodeComplete) {
+      await hooks.onNodeComplete(node.id, node.type, { input, output: null, error: err, startedAt, durationMs }).catch(() => {});
+    }
     throw err;
   }
 
-  // Descobre próximo(s) nó(s)
+  const durationMs = Date.now() - startTime;
+  if (hooks.onNodeComplete) {
+    await hooks.onNodeComplete(node.id, node.type, { input, output, error: null, startedAt, durationMs }).catch(() => {});
+  }
+
   const edges = edgeMap[nodeId] || [];
   if (edges.length === 0) {
     console.log(`[FIM] Fluxo concluído no nó: ${nodeId}`);
     return output;
   }
 
-  // Se o output tem _branch (nós IF/SWITCH), filtra a edge correta
   let nextEdges = edges;
   if (output._branch !== undefined) {
     nextEdges = edges.filter(e => e.branch === output._branch);
@@ -78,9 +87,8 @@ async function executeNode(nodeId, input, nodeMap, edgeMap, depth) {
     }
   }
 
-  // Executa próximo nó (primeiro da lista para fluxo linear)
   const nextEdge = nextEdges[0];
-  return await executeNode(nextEdge.to, output, nodeMap, edgeMap, depth + 1);
+  return await executeNode(nextEdge.to, output, nodeMap, edgeMap, depth + 1, hooks);
 }
 
 module.exports = { runFlow };
