@@ -6,7 +6,7 @@ import FlowCanvas from '../components/FlowCanvas';
 import RunModal from '../components/RunModal';
 import NodeEditorModal from '../components/NodeEditorModal';
 import { FlowContext } from '../context/FlowContext';
-import { listFlows, getFlow, createFlow, updateFlow, runFlow, getExecution } from '../api';
+import { listFlows, getFlow, createFlow, updateFlow, runFlow, getExecution, runStep } from '../api';
 import { toReactFlow, fromReactFlow, slugify } from '../utils/flowConverter';
 
 const EDGE_STYLE = {
@@ -142,6 +142,26 @@ export default function EditorPage({ initialFlowId }) {
     }]);
   }, [setNodes]);
 
+  const handleStepRun = useCallback(async (nodeId, updatedNodeData) => {
+    // Apply the updated node data first so the canvas stays in sync
+    setNodes((nds) => nds.map((n) => n.id === nodeId ? { ...n, data: updatedNodeData } : n));
+
+    // Build the flow with the latest (possibly unsaved) node config
+    const latestNodes = nodes.map((n) => n.id === nodeId ? { ...n, data: updatedNodeData } : n);
+    const flow = fromReactFlow(currentFlowId || `step-${Date.now()}`, flowName, latestNodes, edges);
+
+    try {
+      const { data } = await runStep(flow, nodeId, {});
+      if (data.nodeData) {
+        setNodeExecutions((prev) => ({ ...prev, ...data.nodeData }));
+      }
+      return data;
+    } catch (err) {
+      showToast('Erro ao executar step', 'error');
+      return { success: false, error: err.message };
+    }
+  }, [nodes, edges, currentFlowId, flowName, setNodes]);
+
   return (
     <FlowContext.Provider value={{ onDeleteNode: handleDeleteNode, onDuplicateNode: handleDuplicateNode, nodeExecutions }}>
       <div className="flex flex-col h-full overflow-hidden" style={{ background: '#0f172a' }}>
@@ -164,6 +184,7 @@ export default function EditorPage({ initialFlowId }) {
             onClose={() => setSelectedNode(null)}
             onDataChange={handleNodeDataChange}
             onDelete={handleDeleteNode}
+            onStepRun={handleStepRun}
           />
         )}
         <RunModal

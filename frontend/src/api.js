@@ -10,6 +10,7 @@ export const deleteFlow          = (id)        => api.delete(`/flows/${id}`);
 export const runFlow             = (id, input) => api.post(`/run/${id}`, input);
 export const getExecution        = (id)        => api.get(`/executions/${id}`);
 export const listExecutions      = (flowId)    => api.get('/executions', { params: flowId ? { flowId } : {} });
+export const runStep             = (flow, nodeId, input) => api.post('/run/step', { flow, nodeId, input: input || {} });
 export const listCredentials     = ()          => api.get('/credentials');
 export const getCredentialById   = (id)        => api.get(`/credentials/${id}`);
 export const createCredential    = (data)      => api.post('/credentials', data);

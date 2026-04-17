@@ -143,6 +143,36 @@ app.post('/webhook/:flowId', async (req, res) => {
   res.json({ queued: true, flowId, executionId, message: 'Job adicionado à fila' });
 });
 
+// ─── Execute step (roda o flow até um nó específico, sem salvar) ─────────────
+app.post('/run/step', async (req, res) => {
+  const { flow, nodeId, input } = req.body;
+  if (!flow)   return res.status(400).json({ error: 'Campo "flow" obrigatório' });
+  if (!nodeId) return res.status(400).json({ error: 'Campo "nodeId" obrigatório' });
+
+  const nodeData = {};
+
+  const hooks = {
+    stopAt: nodeId,
+    onNodeComplete: async (id, _type, info) => {
+      nodeData[id] = {
+        status: info.error ? 'error' : 'success',
+        input:  info.input  ?? null,
+        output: info.output ?? null,
+        error:  info.error?.message || null,
+        durationMs: info.durationMs,
+      };
+    },
+  };
+
+  try {
+    await runFlow(flow, input || {}, null, hooks);
+    res.json({ success: true, nodeData });
+  } catch (err) {
+    // Return partial nodeData even when the flow throws
+    res.json({ success: false, nodeData, error: err.message });
+  }
+});
+
 // ─── Run direto (síncrono) ──────────────────────────────────────────────────
 app.post('/run/:flowId', async (req, res) => {
   const { flowId } = req.params;

@@ -75,6 +75,12 @@ async function executeNode(nodeId, input, nodeMap, edgeMap, context, depth, hook
 
   if (output && output._mergePending) return output;
 
+  // Stop here if this is the requested target node
+  if (hooks.stopAt === nodeId) {
+    console.log(`[STOP] Execução interrompida em: ${nodeId}`);
+    return output;
+  }
+
   const edges = edgeMap[nodeId] || [];
   if (edges.length === 0) {
     console.log(`[FIM] Fluxo concluído no nó: ${nodeId}`);

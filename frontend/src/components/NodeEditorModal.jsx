@@ -211,11 +211,12 @@ function CodeEditor({ value, onChange, placeholder }) {
 const inputStyle = { background: '#0d0d1e', border: '1px solid #1e293b', color: '#e2e8f0' };
 const inputCls = 'w-full text-xs border rounded px-2.5 py-2 font-mono focus:outline-none focus:ring-1 focus:ring-violet-500 transition-colors';
 
-export default function NodeEditorModal({ node, execData, onClose, onDataChange, onDelete }) {
+export default function NodeEditorModal({ node, execData, onClose, onDataChange, onDelete, onStepRun }) {
   const [label, setLabel] = useState('');
   const [config, setConfig] = useState({});
   const [credentials, setCredentials] = useState([]);
   const [centerTab, setCenterTab] = useState('parameters');
+  const [isRunning, setIsRunning] = useState(false);
 
   useEffect(() => {
     if (node) {
@@ -251,7 +252,7 @@ export default function NodeEditorModal({ node, execData, onClose, onDataChange,
   const outputData = execData?.output ?? null;
   const outputError = execData?.status === 'error' ? execData.error : null;
 
-  const handleApply = () => {
+  const buildNodeData = () => {
     const processed = { ...config };
     if (node.data.nodeType === 'switch' && typeof processed.cases === 'string') {
       processed.cases = processed.cases.split(',').map(s => s.trim()).filter(Boolean);
@@ -262,8 +263,19 @@ export default function NodeEditorModal({ node, execData, onClose, onDataChange,
     if (node.data.nodeType === 'claude' && processed.maxTokens !== undefined) {
       processed.maxTokens = Number(processed.maxTokens);
     }
-    onDataChange(node.id, { label, nodeType: node.data.nodeType, config: processed });
+    return { label, nodeType: node.data.nodeType, config: processed };
+  };
+
+  const handleApply = () => {
+    onDataChange(node.id, buildNodeData());
     onClose();
+  };
+
+  const handleExecuteStep = async () => {
+    if (!onStepRun || isRunning) return;
+    setIsRunning(true);
+    await onStepRun(node.id, buildNodeData());
+    setIsRunning(false);
   };
 
   return createPortal(
@@ -326,7 +338,33 @@ export default function NodeEditorModal({ node, execData, onClose, onDataChange,
             <span style={{ fontSize: 11, color: '#ef4444', flexShrink: 0 }}>✗ erro</span>
           )}
 
-          <div style={{ flex: '0 0 24px' }} />
+          <div style={{ flex: 1 }} />
+
+          {/* Execute step button */}
+          <button
+            onClick={handleExecuteStep}
+            disabled={isRunning}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: isRunning ? '#1e293b' : '#f59e0b',
+              border: 'none', color: isRunning ? '#64748b' : '#0a0a16',
+              cursor: isRunning ? 'not-allowed' : 'pointer',
+              padding: '6px 14px', borderRadius: 7, fontSize: 12,
+              fontWeight: 700, flexShrink: 0, transition: 'all 0.15s',
+              letterSpacing: '0.01em',
+            }}
+            onMouseEnter={e => { if (!isRunning) e.currentTarget.style.background = '#d97706'; }}
+            onMouseLeave={e => { if (!isRunning) e.currentTarget.style.background = '#f59e0b'; }}
+          >
+            {isRunning ? (
+              <>
+                <span style={{ display: 'inline-block', animation: 'spin 0.8s linear infinite', fontSize: 13 }}>◌</span>
+                Executando…
+              </>
+            ) : (
+              <>▶ Execute step</>
+            )}
+          </button>
 
           <button
             onClick={() => { onDelete(node.id); onClose(); }}
