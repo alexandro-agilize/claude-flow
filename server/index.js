@@ -5,6 +5,8 @@ const { runFlow } = require('../engine/runner');
 const { enqueue, size } = require('../engine/queue');
 const { listFlows, getFlow, createFlow, updateFlow, deleteFlow } = require('../db/flows');
 const { createExecution, finishExecution, failExecution, logNode, listExecutions, getExecution } = require('../db/executions');
+const scheduler = require('../engine/scheduler');
+const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -169,6 +171,47 @@ app.post('/run/:flowId', async (req, res) => {
   }
 });
 
+// ─── Schedules (cron) ────────────────────────────────────────────────────────
+const prisma = require('../db/client');
+
+app.get('/schedules', async (req, res) => {
+  try {
+    res.json(await prisma.schedule.findMany({ orderBy: { createdAt: 'desc' } }));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/schedules', async (req, res) => {
+  const { flowId, cron, enabled = true } = req.body;
+  if (!flowId) return res.status(400).json({ error: 'Campo "flowId" obrigatório' });
+  if (!cron)   return res.status(400).json({ error: 'Campo "cron" obrigatório' });
+  try {
+    const schedule = await prisma.schedule.create({
+      data: { id: uuidv4(), flowId, cron, enabled, createdAt: new Date() },
+    });
+    scheduler.registerSchedule(schedule);
+    res.status(201).json(schedule);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.patch('/schedules/:id', async (req, res) => {
+  try {
+    const schedule = await prisma.schedule.update({
+      where: { id: req.params.id },
+      data: req.body,
+    });
+    scheduler.registerSchedule(schedule);
+    res.json(schedule);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/schedules/:id', async (req, res) => {
+  try {
+    await prisma.schedule.delete({ where: { id: req.params.id } });
+    scheduler.unregisterSchedule(req.params.id);
+    res.json({ deleted: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ─── Status da fila ─────────────────────────────────────────────────────────
 app.get('/queue/:name', (req, res) => {
   const count = size(req.params.name);
@@ -188,4 +231,5 @@ app.listen(PORT, () => {
   console.log(` claude-flow server rodando`);
   console.log(` http://localhost:${PORT}`);
   console.log(`====================================\n`);
+  scheduler.loadAll();
 });

@@ -47,6 +47,27 @@ const FIELDS = {
     { key: 'message', label: 'Mensagem', type: 'text', placeholder: 'Etapa concluída: {{input.id}}', help: 'Suporta interpolação com {{campo}}.' },
     { key: 'level',   label: 'Nível',    type: 'select', options: ['info', 'warn', 'error'], default: 'info' },
   ],
+  email: [
+    { key: 'to',      label: 'Para (to)',    type: 'text',     placeholder: 'destino@exemplo.com', help: 'Suporta {{input.campo}}.' },
+    { key: 'subject', label: 'Assunto',      type: 'text',     placeholder: 'Olá, {{input.nome}}!' },
+    { key: 'body',    label: 'Corpo',        type: 'textarea', placeholder: 'Conteúdo do email...', help: 'Suporta interpolação com {{campo}}.' },
+    { key: 'from',    label: 'Remetente',    type: 'text',     placeholder: 'noreply@exemplo.com', help: 'Deixe em branco para usar SMTP_USER.' },
+    { key: 'html',    label: 'HTML?',        type: 'select',   options: ['false', 'true'], default: 'false' },
+  ],
+  slack: [
+    { key: 'channel', label: 'Canal / User', type: 'text',     placeholder: '#geral ou @usuario', help: 'ID ou nome do canal/usuário.' },
+    { key: 'text',    label: 'Mensagem',     type: 'textarea', placeholder: 'Workflow concluído: {{input.id}}', help: 'Suporta interpolação com {{campo}}.' },
+  ],
+  postgres: [
+    { key: 'url',    label: 'Connection URL', type: 'text',     placeholder: 'postgresql://user:pass@host/db', help: 'Deixe em branco para usar POSTGRES_URL.' },
+    { key: 'query',  label: 'Query SQL',      type: 'code',     placeholder: 'SELECT * FROM users WHERE id = $1', help: 'Use $1, $2... para params posicionais.' },
+    { key: 'params', label: 'Params (JSON)',   type: 'textarea', placeholder: '["{{input.userId}}"]', help: 'Array JSON com os valores dos parâmetros.' },
+  ],
+  'sub-flow': [
+    { key: 'flowId',      label: 'ID do Flow',       type: 'text',   placeholder: 'meu-outro-flow' },
+    { key: 'passInput',   label: 'Passar input?',    type: 'select', options: ['true', 'false'], default: 'true', help: 'Repassa o input atual para o sub-flow.' },
+    { key: 'outputField', label: 'Campo de saída',   type: 'text',   placeholder: 'subflow', help: 'Nome do campo no output onde o resultado fica.' },
+  ],
 };
 
 const inputClass = `

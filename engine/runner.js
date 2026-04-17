@@ -14,6 +14,10 @@ const nodes = {
   loop:           require('./nodes/loop'),
   'set-variable': require('./nodes/set-variable'),
   log:            require('./nodes/log'),
+  email:          require('./nodes/email'),
+  slack:          require('./nodes/slack'),
+  postgres:       require('./nodes/postgres'),
+  'sub-flow':     require('./nodes/sub-flow'),
 };
 
 async function runFlow(flow, input = {}, startId = null, options = {}) {

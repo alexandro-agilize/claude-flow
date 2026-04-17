@@ -15,6 +15,10 @@ const STYLES = {
   loop:           { color: '#6366f1', icon: '↺',  label: 'Loop' },
   'set-variable': { color: '#ec4899', icon: '$',  label: 'Variável' },
   log:            { color: '#84cc16', icon: '◉',  label: 'Log' },
+  email:          { color: '#f43f5e', icon: '✉',  label: 'Email' },
+  slack:          { color: '#4ade80', icon: '◈',  label: 'Slack' },
+  postgres:       { color: '#38bdf8', icon: '🗄',  label: 'Postgres' },
+  'sub-flow':     { color: '#fb923c', icon: '⊞',  label: 'Sub-flow' },
 };
 
 const STATUS_CONFIG = {
@@ -39,6 +43,14 @@ function ConfigPreview({ nodeType, config }) {
     return <span className="font-mono truncate">{config.arrayPath}</span>;
   if (nodeType === 'set-variable' && config.name)
     return <span className="font-mono truncate">{config.name}</span>;
+  if (nodeType === 'email' && config.to)
+    return <span className="truncate">{config.to}</span>;
+  if (nodeType === 'slack' && config.channel)
+    return <span className="font-mono truncate">{config.channel}</span>;
+  if (nodeType === 'postgres' && config.query)
+    return <span className="font-mono truncate">{config.query.split('\n')[0]}</span>;
+  if (nodeType === 'sub-flow' && config.flowId)
+    return <span className="font-mono truncate">{config.flowId}</span>;
   return null;
 }
 

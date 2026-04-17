@@ -36,6 +36,15 @@ const CATEGORIES = [
       { type: 'log',    label: 'Log',       icon: '◉', color: '#84cc16', desc: 'Registrar log' },
     ],
   },
+  {
+    label: 'Integrações',
+    nodes: [
+      { type: 'email',    label: 'Email',    icon: '✉', color: '#f43f5e', desc: 'Enviar email SMTP' },
+      { type: 'slack',    label: 'Slack',    icon: '◈', color: '#4ade80', desc: 'Mensagem Slack' },
+      { type: 'postgres', label: 'Postgres', icon: '🗄', color: '#38bdf8', desc: 'Query PostgreSQL' },
+      { type: 'sub-flow', label: 'Sub-flow', icon: '⊞', color: '#fb923c', desc: 'Executar outro flow' },
+    ],
+  },
 ];
 
 export default function NodeSidebar() {
