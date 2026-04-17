@@ -163,7 +163,7 @@ export default function EditorPage({ initialFlowId }) {
   }, [nodes, edges, currentFlowId, flowName, setNodes]);
 
   return (
-    <FlowContext.Provider value={{ onDeleteNode: handleDeleteNode, onDuplicateNode: handleDuplicateNode, nodeExecutions }}>
+    <FlowContext.Provider value={{ onDeleteNode: handleDeleteNode, onDuplicateNode: handleDuplicateNode, nodeExecutions, currentFlowId }}>
       <div className="flex flex-col h-full overflow-hidden" style={{ background: '#0f172a' }}>
         <Toolbar
           flows={flows} currentFlowId={currentFlowId} flowName={flowName}
@@ -180,6 +180,7 @@ export default function EditorPage({ initialFlowId }) {
         {selectedNode && (
           <NodeEditorModal
             node={selectedNode}
+            flowId={currentFlowId}
             execData={nodeExecutions[selectedNode.id]}
             onClose={() => setSelectedNode(null)}
             onDataChange={handleNodeDataChange}

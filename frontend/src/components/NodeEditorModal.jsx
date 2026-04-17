@@ -211,7 +211,94 @@ function CodeEditor({ value, onChange, placeholder }) {
 const inputStyle = { background: '#0d0d1e', border: '1px solid #1e293b', color: '#e2e8f0' };
 const inputCls = 'w-full text-xs border rounded px-2.5 py-2 font-mono focus:outline-none focus:ring-1 focus:ring-violet-500 transition-colors';
 
-export default function NodeEditorModal({ node, execData, onClose, onDataChange, onDelete, onStepRun }) {
+function WebhookUrlCard({ flowId, method }) {
+  const [copied, setCopied] = useState(null);
+  const url = flowId ? `${window.location.origin}/webhook/${flowId}` : null;
+  const curl = url ? `curl -X ${method || 'POST'} "${url}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"key": "value"}'` : '';
+
+  const copy = (text, label) => {
+    navigator.clipboard.writeText(text).catch(() => {});
+    setCopied(label);
+    setTimeout(() => setCopied(null), 1800);
+  };
+
+  return (
+    <div style={{ background: '#050510', border: '1px solid #10b98130', borderRadius: 8, overflow: 'hidden' }}>
+      {/* URL row */}
+      <div style={{ padding: '10px 12px', borderBottom: '1px solid #0a1a12' }}>
+        <p style={{ fontSize: 10, fontWeight: 700, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 6px' }}>
+          Webhook URL
+        </p>
+        {!url ? (
+          <p style={{ fontSize: 11, color: '#334155', margin: 0 }}>
+            Salve o flow para gerar a URL
+          </p>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <code style={{
+              flex: 1, fontSize: 11, color: '#34d399', background: '#0a1a12',
+              padding: '5px 8px', borderRadius: 5, overflow: 'hidden',
+              textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'monospace',
+            }}>
+              {url}
+            </code>
+            <button
+              onClick={() => copy(url, 'url')}
+              style={{
+                flexShrink: 0, fontSize: 10, padding: '4px 10px', borderRadius: 5,
+                background: copied === 'url' ? '#10b98122' : '#0f172a',
+                border: `1px solid ${copied === 'url' ? '#10b981' : '#1e293b'}`,
+                color: copied === 'url' ? '#10b981' : '#64748b',
+                cursor: 'pointer', transition: 'all 0.12s',
+              }}
+            >
+              {copied === 'url' ? '✓ Copiado' : 'Copiar URL'}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Method badge + curl example */}
+      {url && (
+        <div style={{ padding: '8px 12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 10, color: '#64748b' }}>Método:</span>
+              <span style={{
+                fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 3,
+                background: '#10b98118', color: '#10b981',
+              }}>
+                {method || 'POST'}
+              </span>
+            </div>
+            <button
+              onClick={() => copy(curl, 'curl')}
+              style={{
+                fontSize: 10, padding: '3px 9px', borderRadius: 5,
+                background: copied === 'curl' ? '#10b98118' : 'transparent',
+                border: `1px solid ${copied === 'curl' ? '#10b981' : '#1e293b'}`,
+                color: copied === 'curl' ? '#10b981' : '#475569',
+                cursor: 'pointer', transition: 'all 0.12s',
+              }}
+            >
+              {copied === 'curl' ? '✓ Copiado' : 'Copiar curl'}
+            </button>
+          </div>
+          <pre style={{
+            fontSize: 10, color: '#64748b', background: '#0a0a18',
+            padding: '6px 9px', borderRadius: 5, margin: 0,
+            fontFamily: 'monospace', lineHeight: 1.6, whiteSpace: 'pre-wrap',
+            border: '1px solid #1e293b',
+          }}>
+            {curl}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function NodeEditorModal({ node, flowId, execData, onClose, onDataChange, onDelete, onStepRun }) {
   const [label, setLabel] = useState('');
   const [config, setConfig] = useState({});
   const [credentials, setCredentials] = useState([]);
@@ -432,7 +519,10 @@ export default function NodeEditorModal({ node, execData, onClose, onDataChange,
             <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
               {centerTab === 'parameters' && (
                 <>
-                  {fields.length === 0 && (
+                  {node.data.nodeType === 'webhook' && (
+                    <WebhookUrlCard flowId={flowId} method={config.method || 'POST'} />
+                  )}
+                  {fields.length === 0 && node.data.nodeType !== 'webhook' && (
                     <p style={{ color: '#1e293b', fontSize: 12, textAlign: 'center', marginTop: 48 }}>
                       Este nó não tem parâmetros configuráveis.
                     </p>

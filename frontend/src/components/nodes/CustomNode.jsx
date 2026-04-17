@@ -44,7 +44,7 @@ function configSummary(nodeType, config) {
 }
 
 export default function CustomNode({ id, data, selected }) {
-  const { onDeleteNode, onDuplicateNode, nodeExecutions } = useFlowContext();
+  const { onDeleteNode, onDuplicateNode, nodeExecutions, currentFlowId } = useFlowContext();
   const [hovered, setHovered] = useState(false);
 
   const s = STYLES[data.nodeType] || STYLES.code;
@@ -57,11 +57,15 @@ export default function CustomNode({ id, data, selected }) {
   const isSwitch  = data.nodeType === 'switch';
   const cases     = isSwitch ? (Array.isArray(data.config?.cases) ? data.config.cases : []) : [];
 
+  const webhookUrl = isWebhook && currentFlowId
+    ? `${window.location.origin}/webhook/${currentFlowId}`
+    : null;
+
   const preview = status === 'success' && exec?.output
     ? JSON.stringify(exec.output).slice(0, 55)
     : status === 'error'
     ? exec?.error?.slice(0, 55)
-    : configSummary(data.nodeType, data.config);
+    : webhookUrl || configSummary(data.nodeType, data.config);
 
   const previewColor = status === 'success' ? '#34d399'
     : status === 'error' ? '#f87171'
