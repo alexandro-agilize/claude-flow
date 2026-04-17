@@ -3,9 +3,8 @@ import { useNodesState, useEdgesState, addEdge, MarkerType } from 'reactflow';
 import Toolbar from '../components/Toolbar';
 import NodeSidebar from '../components/NodeSidebar';
 import FlowCanvas from '../components/FlowCanvas';
-import ConfigPanel from '../components/ConfigPanel';
 import RunModal from '../components/RunModal';
-import NodeIOPanel from '../components/NodeIOPanel';
+import NodeEditorModal from '../components/NodeEditorModal';
 import { FlowContext } from '../context/FlowContext';
 import { listFlows, getFlow, createFlow, updateFlow, runFlow, getExecution } from '../api';
 import { toReactFlow, fromReactFlow, slugify } from '../utils/flowConverter';
@@ -157,18 +156,16 @@ export default function EditorPage({ initialFlowId }) {
             nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
             onConnect={onConnect} onNodeClick={handleNodeClick} onPaneClick={handlePaneClick} onAddNode={handleAddNode}
           />
-          <ConfigPanel
+        </div>
+        {selectedNode && (
+          <NodeEditorModal
             node={selectedNode}
-            nodeInput={selectedNode ? nodeExecutions[selectedNode.id]?.input : null}
+            execData={nodeExecutions[selectedNode.id]}
+            onClose={() => setSelectedNode(null)}
             onDataChange={handleNodeDataChange}
             onDelete={handleDeleteNode}
           />
-        </div>
-        <NodeIOPanel
-          node={selectedNode}
-          execData={selectedNode ? nodeExecutions[selectedNode.id] : null}
-          onClose={() => setSelectedNode(null)}
-        />
+        )}
         <RunModal
           isOpen={runModalOpen} onClose={() => { setRunModalOpen(false); setRunResult(null); }}
           onRun={executeRun} isRunning={isRunning} result={runResult}
