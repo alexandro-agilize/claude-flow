@@ -4,6 +4,7 @@ import EditorPage from './pages/EditorPage';
 import ExecutionsPage from './pages/ExecutionsPage';
 import CredentialsPage from './pages/CredentialsPage';
 import FlowsPage from './pages/FlowsPage';
+import VariablesPage from './pages/VariablesPage';
 
 export default function App() {
   const [page, setPage] = useState('editor');
@@ -22,6 +23,7 @@ export default function App() {
         {page === 'executions'  && <ExecutionsPage />}
         {page === 'credentials' && <CredentialsPage />}
         {page === 'flows'       && <FlowsPage onOpenFlow={openFlowInEditor} />}
+        {page === 'variables'   && <VariablesPage />}
       </div>
     </div>
   );

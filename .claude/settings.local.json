@@ -37,7 +37,9 @@
       "Read(//c/Users/Agilize/Pictures/**)",
       "Bash(npx prisma *)",
       "Bash(DATABASE_URL=\"file:./db/claude-flow.db\" npx prisma migrate dev --name add_credentials)",
-      "Bash(docker run *)"
+      "Bash(docker run *)",
+      "Bash(DATABASE_URL=\"file:./db/data/claude-flow.db\" npx prisma *)",
+      "Bash(docker build *)"
     ]
   }
 }

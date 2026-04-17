@@ -1,6 +1,3 @@
-const path = require('path');
-const fs = require('fs');
-
 const nodes = {
   http:           require('./nodes/http'),
   webhook:        require('./nodes/webhook'),
@@ -20,6 +17,23 @@ const nodes = {
   'sub-flow':     require('./nodes/sub-flow'),
 };
 
+// Resolve {{env.KEY}} patterns in config string values
+function resolveEnvVars(config, envVars) {
+  if (!config || typeof config !== 'object') return config;
+  const out = {};
+  for (const [k, v] of Object.entries(config)) {
+    if (k === 'retry') { out[k] = v; continue; } // skip retry meta-config
+    if (typeof v === 'string') {
+      out[k] = v.replace(/\{\{env\.([^}]+)\}\}/g, (_, key) => envVars[key] ?? process.env[key] ?? '');
+    } else if (v && typeof v === 'object') {
+      out[k] = resolveEnvVars(v, envVars);
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
 async function runFlow(flow, input = {}, startId = null, options = {}) {
   const nodeMap = {};
   for (const node of flow.nodes) nodeMap[node.id] = node;
@@ -32,7 +46,8 @@ async function runFlow(flow, input = {}, startId = null, options = {}) {
     incomingCount[edge.to] = (incomingCount[edge.to] || 0) + 1;
   }
 
-  const context = { variables: {}, logs: [], nodeOutputs: {}, incomingCount };
+  const envVars = options.envVars || {};
+  const context = { variables: {}, logs: [], nodeOutputs: {}, incomingCount, envVars };
 
   const currentId = startId || flow.nodes[0]?.id;
   if (!currentId) throw new Error('Flow sem nós definidos');
@@ -42,6 +57,7 @@ async function runFlow(flow, input = {}, startId = null, options = {}) {
 
 async function executeNode(nodeId, input, nodeMap, edgeMap, context, depth, hooks = {}) {
   if (depth > 50) throw new Error('Limite de execução atingido (loop infinito?)');
+  if (hooks.signal?.aborted) throw new Error('Execução cancelada');
 
   const node = nodeMap[nodeId];
   if (!node) throw new Error(`Nó "${nodeId}" não encontrado no flow`);
@@ -51,22 +67,47 @@ async function executeNode(nodeId, input, nodeMap, edgeMap, context, depth, hook
 
   console.log(`[${depth}] Executando nó: ${node.id} (${node.type})`);
 
+  if (hooks.onNodeStart) {
+    await hooks.onNodeStart(node.id, node.type, { input }).catch(() => {});
+  }
+
   const startedAt = new Date();
   const startTime = Date.now();
 
+  // Retry config
+  const retryCount  = node.config?.retry?.count  ?? 0;
+  const retryDelayMs = node.config?.retry?.delayMs ?? 1000;
+
+  // Resolve {{env.KEY}} in config
+  const resolvedConfig = resolveEnvVars(node.config || {}, context.envVars);
+
   let output;
-  try {
-    output = await handler.run(node.config || {}, input, context, node.id);
-  } catch (err) {
-    const durationMs = Date.now() - startTime;
-    console.error(`[ERRO] Nó "${node.id}": ${err.message}`);
-    if (hooks.onNodeComplete) {
-      await hooks.onNodeComplete(node.id, node.type, { input, output: null, error: err, startedAt, durationMs }).catch(() => {});
+  let lastError;
+
+  for (let attempt = 0; attempt <= retryCount; attempt++) {
+    try {
+      if (attempt > 0) {
+        console.log(`[RETRY] Nó "${node.id}" — tentativa ${attempt}/${retryCount}`);
+        await new Promise(r => setTimeout(r, retryDelayMs));
+      }
+      output = await handler.run(resolvedConfig, input, context, node.id);
+      lastError = null;
+      break;
+    } catch (err) {
+      lastError = err;
     }
-    throw err;
   }
 
   const durationMs = Date.now() - startTime;
+
+  if (lastError) {
+    console.error(`[ERRO] Nó "${node.id}": ${lastError.message}`);
+    if (hooks.onNodeComplete) {
+      await hooks.onNodeComplete(node.id, node.type, { input, output: null, error: lastError, startedAt, durationMs }).catch(() => {});
+    }
+    throw lastError;
+  }
+
   if (hooks.onNodeComplete) {
     await hooks.onNodeComplete(node.id, node.type, { input, output, error: null, startedAt, durationMs }).catch(() => {});
   }

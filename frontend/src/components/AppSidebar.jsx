@@ -3,6 +3,7 @@ const NAV = [
   { id: 'flows',       icon: '⊞', label: 'Flows' },
   { id: 'executions',  icon: '◷', label: 'Execuções' },
   { id: 'credentials', icon: '⚿', label: 'Credenciais' },
+  { id: 'variables',   icon: '$',  label: 'Variáveis' },
 ];
 
 export default function AppSidebar({ page, onNavigate }) {

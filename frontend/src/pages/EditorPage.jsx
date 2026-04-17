@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNodesState, useEdgesState, addEdge, MarkerType } from 'reactflow';
 import Toolbar from '../components/Toolbar';
 import NodeSidebar from '../components/NodeSidebar';
@@ -6,7 +6,7 @@ import FlowCanvas from '../components/FlowCanvas';
 import RunModal from '../components/RunModal';
 import NodeEditorModal from '../components/NodeEditorModal';
 import { FlowContext } from '../context/FlowContext';
-import { listFlows, getFlow, createFlow, updateFlow, runFlow, getExecution, runStep } from '../api';
+import { listFlows, getFlow, createFlow, updateFlow, getExecution, runStep } from '../api';
 import { toReactFlow, fromReactFlow, slugify } from '../utils/flowConverter';
 
 const EDGE_STYLE = {
@@ -31,6 +31,7 @@ export default function EditorPage({ initialFlowId }) {
   const [runResult, setRunResult] = useState(null);
   const [toast, setToast] = useState(null);
   const [nodeExecutions, setNodeExecutions] = useState({});
+  const abortRef = useRef(null);
 
   useEffect(() => {
     listFlows().then(r => setFlows(r.data)).catch(() => showToast('Erro ao conectar com o servidor', 'error'));
@@ -82,32 +83,75 @@ export default function EditorPage({ initialFlowId }) {
 
   const handleRun = () => { setRunResult(null); setRunModalOpen(true); };
 
-  const executeRun = async (input) => {
+  const executeRun = useCallback(async (input) => {
     if (!currentFlowId) return;
-    setIsRunning(true); setNodeExecutions({});
+    if (abortRef.current) abortRef.current.abort();
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    setIsRunning(true);
+    setNodeExecutions({});
+    setRunResult(null);
+
     try {
-      const { data } = await runFlow(currentFlowId, input);
-      setRunResult({ success: true, result: data.result });
-      if (data.executionId) {
-        try {
-          const { data: exec } = await getExecution(data.executionId);
-          const execMap = {};
-          (exec.logs || []).forEach(log => {
-            execMap[log.nodeId] = {
-              status: log.status === 'success' ? 'success' : 'error',
-              input:  log.input  ? JSON.parse(log.input)  : null,
-              output: log.output ? JSON.parse(log.output) : null,
-              error: log.error, durationMs: log.durationMs,
-            };
-          });
-          setNodeExecutions(execMap);
-        } catch { /* logs not critical */ }
+      const response = await fetch(`/run/${currentFlowId}/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input || {}),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        setRunResult({ success: false, error: err.error || 'Erro desconhecido' });
+        return;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() ?? '';
+        for (const part of parts) {
+          const line = part.trim();
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const ev = JSON.parse(line.slice(6));
+            if (ev.type === 'node:start') {
+              setNodeExecutions(prev => ({
+                ...prev,
+                [ev.nodeId]: { status: 'running', input: ev.input, output: null, error: null, durationMs: null },
+              }));
+            } else if (ev.type === 'node:complete') {
+              setNodeExecutions(prev => ({
+                ...prev,
+                [ev.nodeId]: { status: ev.status, input: ev.input, output: ev.output, error: ev.error, durationMs: ev.durationMs },
+              }));
+            } else if (ev.type === 'flow:done') {
+              setRunResult({ success: true, result: ev.result });
+            } else if (ev.type === 'flow:error') {
+              setRunResult({ success: false, error: ev.error });
+              showToast('Erro na execução', 'error');
+            }
+          } catch {}
+        }
       }
     } catch (err) {
-      setRunResult({ success: false, error: err.response?.data?.error || err.message });
-      showToast('Erro na execução', 'error');
-    } finally { setIsRunning(false); }
-  };
+      if (err.name !== 'AbortError') {
+        setRunResult({ success: false, error: err.message });
+        showToast('Erro na execução', 'error');
+      }
+    } finally {
+      setIsRunning(false);
+      abortRef.current = null;
+    }
+  }, [currentFlowId]);
 
   const handleNodeClick = useCallback((_, node) => setSelectedNode(node), []);
   const handlePaneClick = useCallback(() => setSelectedNode(null), []);

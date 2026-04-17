@@ -6,6 +6,7 @@ const { enqueue, size } = require('../engine/queue');
 const { listFlows, getFlow, createFlow, updateFlow, deleteFlow } = require('../db/flows');
 const { createExecution, finishExecution, failExecution, logNode, listExecutions, getExecution } = require('../db/executions');
 const { listCredentials, getCredential, createCredential, updateCredential, deleteCredential } = require('../db/credentials');
+const { listVariables, createVariable, updateVariable, deleteVariable } = require('../db/variables');
 const scheduler = require('../engine/scheduler');
 const { v4: uuidv4 } = require('uuid');
 
@@ -143,6 +144,14 @@ app.post('/webhook/:flowId', async (req, res) => {
   res.json({ queued: true, flowId, executionId, message: 'Job adicionado à fila' });
 });
 
+// Helper: carrega variáveis do banco para passar ao runner
+async function loadEnvVars() {
+  try {
+    const vars = await listVariables();
+    return Object.fromEntries(vars.map(v => [v.key, v.value]));
+  } catch { return {}; }
+}
+
 // ─── Execute step (roda o flow até um nó específico, sem salvar) ─────────────
 app.post('/run/step', async (req, res) => {
   const { flow, nodeId, input } = req.body;
@@ -164,13 +173,66 @@ app.post('/run/step', async (req, res) => {
     },
   };
 
+  const envVars = await loadEnvVars();
   try {
-    await runFlow(flow, input || {}, null, hooks);
+    await runFlow(flow, input || {}, null, { ...hooks, envVars });
     res.json({ success: true, nodeData });
   } catch (err) {
-    // Return partial nodeData even when the flow throws
     res.json({ success: false, nodeData, error: err.message });
   }
+});
+
+// ─── Run com SSE — stream de eventos em tempo real ───────────────────────────
+app.post('/run/:flowId/stream', async (req, res) => {
+  const { flowId } = req.params;
+  const flow = await getFlow(flowId).catch(() => null);
+  if (!flow) return res.status(404).json({ error: `Flow "${flowId}" não encontrado` });
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  const ac = new AbortController();
+  req.on('close', () => ac.abort());
+
+  const send = (data) => {
+    try { res.write(`data: ${JSON.stringify(data)}\n\n`); } catch {}
+  };
+
+  let execution;
+  try { execution = await createExecution(flowId, req.body || {}); } catch {}
+
+  const envVars = await loadEnvVars();
+
+  const hooks = {
+    signal: ac.signal,
+    onNodeStart: async (nodeId, nodeType, { input }) => {
+      send({ type: 'node:start', nodeId, nodeType, input });
+    },
+    onNodeComplete: async (nodeId, nodeType, info) => {
+      if (execution) await logNode(execution.id, nodeId, nodeType, info).catch(() => {});
+      send({
+        type: 'node:complete', nodeId,
+        status: info.error ? 'error' : 'success',
+        input: info.input, output: info.output,
+        error: info.error?.message || null, durationMs: info.durationMs,
+      });
+    },
+    envVars,
+  };
+
+  try {
+    const result = await runFlow(flow, req.body || {}, null, hooks);
+    if (execution) await finishExecution(execution.id, result).catch(() => {});
+    send({ type: 'flow:done', result, executionId: execution?.id });
+  } catch (err) {
+    if (execution) await failExecution(execution.id, err).catch(() => {});
+    send({ type: 'flow:error', error: err.message, executionId: execution?.id });
+  }
+
+  res.end();
 });
 
 // ─── Run direto (síncrono) ──────────────────────────────────────────────────
@@ -187,10 +249,11 @@ app.post('/run/:flowId', async (req, res) => {
     console.warn('[DB] Falha ao registrar execução:', err.message);
   }
 
-  const hooks = execution ? {
-    onNodeComplete: (nodeId, nodeType, info) =>
-      logNode(execution.id, nodeId, nodeType, info),
-  } : {};
+  const envVars = await loadEnvVars();
+  const hooks = {
+    envVars,
+    ...(execution ? { onNodeComplete: (nodeId, nodeType, info) => logNode(execution.id, nodeId, nodeType, info) } : {}),
+  };
 
   try {
     const result = await runFlow(flow, req.body || {}, null, hooks);
@@ -271,6 +334,29 @@ app.put('/credentials/:id', async (req, res) => {
 
 app.delete('/credentials/:id', async (req, res) => {
   try { await deleteCredential(req.params.id); res.json({ deleted: true }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── Variables (env vars armazenadas no banco) ────────────────────────────────
+app.get('/variables', async (req, res) => {
+  try { res.json(await listVariables()); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/variables', async (req, res) => {
+  const { key, value } = req.body;
+  if (!key) return res.status(400).json({ error: 'Campo "key" obrigatório' });
+  try { res.status(201).json(await createVariable({ key, value: value ?? '' })); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/variables/:id', async (req, res) => {
+  try { res.json(await updateVariable(req.params.id, req.body)); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/variables/:id', async (req, res) => {
+  try { await deleteVariable(req.params.id); res.json({ deleted: true }); }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 

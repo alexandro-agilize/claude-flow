@@ -592,11 +592,35 @@ export default function NodeEditorModal({ node, flowId, execData, onClose, onDat
                     <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.09em' }}>Tipo</label>
                     <input value={node.data.nodeType} readOnly className={inputCls} style={{ ...inputStyle, opacity: 0.45, cursor: 'default' }} />
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.09em' }}>Posição</label>
-                    <input
-                      value={`x: ${Math.round(node.position?.x ?? 0)}, y: ${Math.round(node.position?.y ?? 0)}`}
-                      readOnly className={inputCls} style={{ ...inputStyle, opacity: 0.45, cursor: 'default' }} />
+
+                  {/* ── Retry ── */}
+                  <div style={{ borderTop: '1px solid #1a1a2e', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.09em', margin: 0 }}>
+                      Retry automático
+                    </p>
+                    <p style={{ fontSize: 11, color: '#334155', margin: 0, lineHeight: 1.45 }}>
+                      Reexecuta este nó automaticamente se ele falhar.
+                    </p>
+                    <div style={{ display: 'flex', gap: 12 }}>
+                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <label style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Tentativas</label>
+                        <input
+                          type="number" min="0" max="10"
+                          value={config.retry?.count ?? 0}
+                          onChange={e => setConfig(c => ({ ...c, retry: { ...c.retry, count: Number(e.target.value) } }))}
+                          className={inputCls} style={inputStyle}
+                        />
+                      </div>
+                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <label style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Delay (ms)</label>
+                        <input
+                          type="number" min="0" step="500"
+                          value={config.retry?.delayMs ?? 1000}
+                          onChange={e => setConfig(c => ({ ...c, retry: { ...c.retry, delayMs: Number(e.target.value) } }))}
+                          className={inputCls} style={inputStyle}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </>
               )}
