@@ -20,7 +20,11 @@ app.use((req, res, next) => {
   next();
 });
 
-app.get('/', (req, res) => {
+if (fs.existsSync(FRONTEND_DIST)) {
+  app.use(express.static(FRONTEND_DIST));
+}
+
+app.get('/api/status', (req, res) => {
   res.json({
     status: 'online',
     message: 'claude-flow está rodando',
@@ -171,9 +175,8 @@ app.get('/queue/:name', (req, res) => {
   res.json({ queue: req.params.name, pending: count });
 });
 
-// ─── Frontend estático (produção) ───────────────────────────────────────────
+// ─── SPA fallback (deve ficar após todas as rotas de API) ───────────────────
 if (fs.existsSync(FRONTEND_DIST)) {
-  app.use(express.static(FRONTEND_DIST));
   app.get('*', (req, res) => {
     res.sendFile(path.join(FRONTEND_DIST, 'index.html'));
   });

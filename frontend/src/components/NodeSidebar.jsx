@@ -1,10 +1,41 @@
-const NODE_TYPES = [
-  { type: 'webhook', label: 'Webhook', icon: '⚡', color: 'bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100', desc: 'Ponto de entrada' },
-  { type: 'http',    label: 'HTTP',    icon: '🌐', color: 'bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100',           desc: 'Requisição HTTP' },
-  { type: 'code',    label: 'Code',    icon: '{ }',color: 'bg-violet-50 border-violet-300 text-violet-700 hover:bg-violet-100',   desc: 'Código JS' },
-  { type: 'if',      label: 'IF',      icon: '?',  color: 'bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100',       desc: 'Condicional' },
-  { type: 'switch',  label: 'Switch',  icon: '⇄',  color: 'bg-yellow-50 border-yellow-300 text-yellow-700 hover:bg-yellow-100',  desc: 'Múltiplos caminhos' },
-  { type: 'wait',    label: 'Wait',    icon: '⏱', color: 'bg-slate-50 border-slate-300 text-slate-600 hover:bg-slate-100',       desc: 'Aguardar (ms)' },
+const CATEGORIES = [
+  {
+    label: 'Entrada',
+    nodes: [
+      { type: 'webhook', label: 'Webhook', icon: '⚡', color: '#10b981', desc: 'Ponto de entrada' },
+    ],
+  },
+  {
+    label: 'Requisições',
+    nodes: [
+      { type: 'http', label: 'HTTP', icon: '🌐', color: '#3b82f6', desc: 'Requisição HTTP' },
+    ],
+  },
+  {
+    label: 'Lógica',
+    nodes: [
+      { type: 'code',    label: 'Code',   icon: '{ }', color: '#8b5cf6', desc: 'Código JavaScript' },
+      { type: 'if',      label: 'IF',     icon: '⑂',   color: '#f59e0b', desc: 'Condicional' },
+      { type: 'switch',  label: 'Switch', icon: '⇄',   color: '#f97316', desc: 'Múltiplos caminhos' },
+      { type: 'loop',    label: 'Loop',   icon: '↺',   color: '#6366f1', desc: 'Iterar sobre array' },
+    ],
+  },
+  {
+    label: 'Dados',
+    nodes: [
+      { type: 'transform',    label: 'Transform',  icon: '⟳', color: '#06b6d4', desc: 'Transformar dados' },
+      { type: 'merge',        label: 'Merge',      icon: '⊕', color: '#14b8a6', desc: 'Combinar saídas' },
+      { type: 'set-variable', label: 'Variável',   icon: '$', color: '#ec4899', desc: 'Salvar variável' },
+    ],
+  },
+  {
+    label: 'IA & Utilidades',
+    nodes: [
+      { type: 'claude', label: 'Claude AI', icon: '✦', color: '#a855f7', desc: 'Claude API' },
+      { type: 'wait',   label: 'Wait',      icon: '⏱', color: '#64748b', desc: 'Aguardar (ms)' },
+      { type: 'log',    label: 'Log',       icon: '◉', color: '#84cc16', desc: 'Registrar log' },
+    ],
+  },
 ];
 
 export default function NodeSidebar() {
@@ -14,31 +45,47 @@ export default function NodeSidebar() {
   };
 
   return (
-    <aside className="w-48 bg-white border-r border-gray-200 flex flex-col overflow-y-auto shrink-0">
-      <div className="px-3 py-3 border-b border-gray-200">
-        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Tipos de nó</p>
+    <aside className="w-52 flex flex-col overflow-y-auto shrink-0"
+      style={{ background: '#0f172a', borderRight: '1px solid #1e293b' }}>
+      <div className="px-3 py-3" style={{ borderBottom: '1px solid #1e293b' }}>
+        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Nós</p>
       </div>
 
-      <div className="p-2 flex flex-col gap-1.5">
-        {NODE_TYPES.map(({ type, label, icon, color, desc }) => (
-          <div
-            key={type}
-            draggable
-            onDragStart={(e) => onDragStart(e, type)}
-            className={`flex items-center gap-2.5 px-2.5 py-2 border rounded-lg cursor-grab active:cursor-grabbing transition-all ${color}`}
-          >
-            <span className="text-base leading-none w-5 text-center shrink-0">{icon}</span>
-            <div className="min-w-0">
-              <div className="text-xs font-semibold leading-tight">{label}</div>
-              <div className="text-[10px] opacity-70 truncate leading-tight">{desc}</div>
-            </div>
+      <div className="flex flex-col gap-0.5 p-2 flex-1">
+        {CATEGORIES.map(({ label, nodes }) => (
+          <div key={label} className="mb-1">
+            <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest px-1.5 py-1.5">
+              {label}
+            </p>
+            {nodes.map(({ type, label: nLabel, icon, color, desc }) => (
+              <div
+                key={type}
+                draggable
+                onDragStart={(e) => onDragStart(e, type)}
+                className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg cursor-grab active:cursor-grabbing transition-all mb-0.5"
+                style={{ background: 'transparent' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#1e293b'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <span
+                  className="text-sm w-5 text-center leading-none shrink-0 font-bold"
+                  style={{ color }}
+                >
+                  {icon}
+                </span>
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-slate-200 leading-tight">{nLabel}</div>
+                  <div className="text-[10px] text-slate-500 truncate leading-tight">{desc}</div>
+                </div>
+              </div>
+            ))}
           </div>
         ))}
       </div>
 
-      <div className="mt-auto p-3 border-t border-gray-100">
-        <p className="text-[10px] text-gray-400 leading-tight">
-          Arraste para o canvas<br />ou clique duplo para adicionar
+      <div className="p-3" style={{ borderTop: '1px solid #1e293b' }}>
+        <p className="text-[10px] text-slate-600 leading-tight">
+          Arraste para o canvas
         </p>
       </div>
     </aside>

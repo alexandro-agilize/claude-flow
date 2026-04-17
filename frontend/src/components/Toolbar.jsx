@@ -1,30 +1,20 @@
-export default function Toolbar({
-  flows,
-  currentFlowId,
-  flowName,
-  onFlowNameChange,
-  onSelectFlow,
-  onNewFlow,
-  onSave,
-  onRun,
-  isSaving,
-  isRunning,
-}) {
+export default function Toolbar({ flows, currentFlowId, flowName, onFlowNameChange, onSelectFlow, onNewFlow, onSave, onRun, isSaving, isRunning }) {
   return (
-    <header className="h-14 bg-gray-900 text-white flex items-center gap-3 px-4 shrink-0 border-b border-gray-800">
-      {/* Brand */}
-      <div className="flex items-center gap-2 mr-1">
-        <span className="text-violet-400 text-lg font-bold leading-none">⚡</span>
-        <span className="text-sm font-bold">claude-flow</span>
+    <header className="h-12 flex items-center gap-3 px-4 shrink-0"
+      style={{ background: '#020617', borderBottom: '1px solid #1e293b' }}>
+
+      <div className="flex items-center gap-1.5 shrink-0">
+        <span className="text-base leading-none" style={{ color: '#8b5cf6' }}>⚡</span>
+        <span className="text-sm font-bold text-slate-100 tracking-tight">claude-flow</span>
       </div>
 
-      <div className="w-px h-6 bg-gray-700 mx-1" />
+      <div className="w-px h-5 shrink-0" style={{ background: '#1e293b' }} />
 
-      {/* Flow selector */}
       <select
         value={currentFlowId || ''}
         onChange={(e) => e.target.value && onSelectFlow(e.target.value)}
-        className="bg-gray-800 text-white text-sm border border-gray-700 rounded-md px-2 py-1 h-8 max-w-[180px] focus:outline-none focus:ring-1 focus:ring-violet-500 cursor-pointer"
+        className="text-xs rounded-md px-2 py-1.5 h-7 max-w-[160px] focus:outline-none focus:ring-1 cursor-pointer"
+        style={{ background: '#0f172a', border: '1px solid #334155', color: '#94a3b8' }}
       >
         <option value="">— Abrir flow —</option>
         {flows.map((f) => (
@@ -32,20 +22,22 @@ export default function Toolbar({
         ))}
       </select>
 
-      {/* Flow name */}
       <input
         type="text"
         value={flowName}
         onChange={(e) => onFlowNameChange(e.target.value)}
         placeholder="Nome do flow"
-        className="bg-gray-800 text-white text-sm border border-gray-700 rounded-md px-2 py-1 h-8 w-48 focus:outline-none focus:ring-1 focus:ring-violet-500"
+        className="text-xs rounded-md px-2 py-1.5 h-7 w-40 focus:outline-none focus:ring-1 focus:ring-violet-500"
+        style={{ background: '#0f172a', border: '1px solid #334155', color: '#e2e8f0' }}
       />
 
-      {/* Actions */}
       <div className="ml-auto flex items-center gap-2">
         <button
           onClick={onNewFlow}
-          className="text-sm px-3 py-1 h-8 rounded-md border border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+          className="text-xs px-3 py-1 h-7 rounded-md font-medium transition-colors"
+          style={{ background: 'transparent', border: '1px solid #334155', color: '#64748b' }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = '#475569'; e.currentTarget.style.color = '#94a3b8'; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = '#334155'; e.currentTarget.style.color = '#64748b'; }}
         >
           + Novo
         </button>
@@ -53,16 +45,22 @@ export default function Toolbar({
         <button
           onClick={onSave}
           disabled={isSaving}
-          className="text-sm px-3 py-1 h-8 rounded-md bg-gray-700 text-gray-200 hover:bg-gray-600 transition-colors disabled:opacity-50"
+          className="text-xs px-3 py-1 h-7 rounded-md font-medium transition-colors disabled:opacity-50"
+          style={{ background: '#1e293b', border: '1px solid #334155', color: '#94a3b8' }}
+          onMouseEnter={e => !isSaving && (e.currentTarget.style.background = '#334155')}
+          onMouseLeave={e => (e.currentTarget.style.background = '#1e293b')}
         >
-          {isSaving ? 'Salvando…' : '💾 Salvar'}
+          {isSaving ? 'Salvando…' : '↓ Salvar'}
         </button>
 
         <button
           onClick={onRun}
           disabled={isRunning || !currentFlowId}
-          className="text-sm px-4 py-1 h-8 rounded-md bg-violet-600 text-white hover:bg-violet-500 transition-colors disabled:opacity-50 font-medium"
           title={!currentFlowId ? 'Salve o flow antes de executar' : ''}
+          className="text-xs px-4 py-1 h-7 rounded-md font-semibold text-white transition-colors disabled:opacity-40"
+          style={{ background: currentFlowId ? '#7c3aed' : '#334155' }}
+          onMouseEnter={e => currentFlowId && !isRunning && (e.currentTarget.style.background = '#6d28d9')}
+          onMouseLeave={e => (e.currentTarget.style.background = currentFlowId ? '#7c3aed' : '#334155')}
         >
           {isRunning ? '⏳ Executando…' : '▶ Executar'}
         </button>
