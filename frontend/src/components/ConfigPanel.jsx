@@ -1,4 +1,7 @@
 import { useState, useEffect } from 'react';
+import { listCredentials } from '../api';
+
+const CRED_NODES = { email: 'smtp', slack: 'slack', postgres: 'postgres' };
 
 const FIELDS = {
   webhook: [
@@ -48,6 +51,7 @@ const FIELDS = {
     { key: 'level',   label: 'Nível',    type: 'select', options: ['info', 'warn', 'error'], default: 'info' },
   ],
   email: [
+    { key: 'credentialId', label: 'Credencial SMTP', type: 'credential', credType: 'smtp', help: 'Opcional — ou preencha SMTP_* nas variáveis de ambiente.' },
     { key: 'to',      label: 'Para (to)',    type: 'text',     placeholder: 'destino@exemplo.com', help: 'Suporta {{input.campo}}.' },
     { key: 'subject', label: 'Assunto',      type: 'text',     placeholder: 'Olá, {{input.nome}}!' },
     { key: 'body',    label: 'Corpo',        type: 'textarea', placeholder: 'Conteúdo do email...', help: 'Suporta interpolação com {{campo}}.' },
@@ -55,11 +59,13 @@ const FIELDS = {
     { key: 'html',    label: 'HTML?',        type: 'select',   options: ['false', 'true'], default: 'false' },
   ],
   slack: [
+    { key: 'credentialId', label: 'Credencial Slack', type: 'credential', credType: 'slack', help: 'Opcional — ou use SLACK_BOT_TOKEN no ambiente.' },
     { key: 'channel', label: 'Canal / User', type: 'text',     placeholder: '#geral ou @usuario', help: 'ID ou nome do canal/usuário.' },
     { key: 'text',    label: 'Mensagem',     type: 'textarea', placeholder: 'Workflow concluído: {{input.id}}', help: 'Suporta interpolação com {{campo}}.' },
   ],
   postgres: [
-    { key: 'url',    label: 'Connection URL', type: 'text',     placeholder: 'postgresql://user:pass@host/db', help: 'Deixe em branco para usar POSTGRES_URL.' },
+    { key: 'credentialId', label: 'Credencial Postgres', type: 'credential', credType: 'postgres', help: 'Opcional — ou preencha url abaixo / POSTGRES_URL.' },
+    { key: 'url',    label: 'Connection URL', type: 'text',     placeholder: 'postgresql://user:pass@host/db', help: 'Ignorado se Credencial selecionada.' },
     { key: 'query',  label: 'Query SQL',      type: 'code',     placeholder: 'SELECT * FROM users WHERE id = $1', help: 'Use $1, $2... para params posicionais.' },
     { key: 'params', label: 'Params (JSON)',   type: 'textarea', placeholder: '["{{input.userId}}"]', help: 'Array JSON com os valores dos parâmetros.' },
   ],
@@ -85,6 +91,7 @@ const inputStyle = {
 export default function ConfigPanel({ node, onDataChange, onDelete }) {
   const [label, setLabel] = useState('');
   const [config, setConfig] = useState({});
+  const [credentials, setCredentials] = useState([]);
 
   useEffect(() => {
     if (node) {
@@ -94,6 +101,12 @@ export default function ConfigPanel({ node, onDataChange, onDelete }) {
       setConfig(cfg);
     }
   }, [node?.id]);
+
+  useEffect(() => {
+    if (node && CRED_NODES[node.data.nodeType]) {
+      listCredentials().then(r => setCredentials(r.data)).catch(() => {});
+    }
+  }, [node?.data?.nodeType]);
 
   if (!node) {
     return (
@@ -165,6 +178,20 @@ export default function ConfigPanel({ node, onDataChange, onDelete }) {
               </label>
               {field.help && (
                 <p className="text-[10px] text-slate-600 mb-1.5 leading-snug">{field.help}</p>
+              )}
+
+              {field.type === 'credential' && (
+                <select
+                  value={value}
+                  onChange={(e) => setConfig((c) => ({ ...c, [field.key]: e.target.value }))}
+                  className={inputClass}
+                  style={{ ...inputStyle, cursor: 'pointer' }}
+                >
+                  <option value="">— usar variáveis de ambiente —</option>
+                  {credentials
+                    .filter(c => c.type === field.credType)
+                    .map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
               )}
 
               {field.type === 'select' && (

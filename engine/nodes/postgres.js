@@ -6,6 +6,16 @@ function getPool(url) {
   return pools[url];
 }
 
+async function resolveUrl(config) {
+  if (config.credentialId) {
+    const prisma = require('../../db/client');
+    const cred = await prisma.credential.findUnique({ where: { id: config.credentialId } });
+    if (!cred) throw new Error(`Credencial "${config.credentialId}" não encontrada`);
+    return JSON.parse(cred.data).url;
+  }
+  return config.url || process.env.POSTGRES_URL;
+}
+
 function interpolate(str, data) {
   if (typeof str !== 'string') return str;
   return str.replace(/\{\{(.+?)\}\}/g, (_, key) => {
@@ -15,7 +25,7 @@ function interpolate(str, data) {
 }
 
 async function run(config, input) {
-  const url   = config.url || process.env.POSTGRES_URL;
+  const url   = await resolveUrl(config);
   const query = interpolate(config.query || '', input);
 
   if (!url)   throw new Error('Postgres: "url" ou POSTGRES_URL obrigatório');

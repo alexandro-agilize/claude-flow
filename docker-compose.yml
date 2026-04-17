@@ -5,13 +5,13 @@ services:
       - "3000:3000"
     environment:
       - PORT=3000
-      - DATABASE_URL=file:/app/db/claude-flow.db
+      - DATABASE_URL=file:/app/db/data/claude-flow.db
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
     volumes:
-      - db_data:/app/db
+      - db_data:/app/db/data
       - ./flows:/app/flows
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/status"]
       interval: 10s
       timeout: 5s
       retries: 5

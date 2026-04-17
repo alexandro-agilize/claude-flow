@@ -1,9 +1,13 @@
 const { WebClient } = require('@slack/web-api');
 
-let client;
-function getClient() {
-  if (!client) client = new WebClient(process.env.SLACK_BOT_TOKEN);
-  return client;
+async function resolveToken(config) {
+  if (config.credentialId) {
+    const prisma = require('../../db/client');
+    const cred = await prisma.credential.findUnique({ where: { id: config.credentialId } });
+    if (!cred) throw new Error(`Credencial "${config.credentialId}" não encontrada`);
+    return JSON.parse(cred.data).botToken;
+  }
+  return process.env.SLACK_BOT_TOKEN;
 }
 
 function interpolate(str, data) {
@@ -20,7 +24,9 @@ async function run(config, input) {
 
   if (!channel) throw new Error('Slack: campo "channel" obrigatório');
 
-  const result = await getClient().chat.postMessage({ channel, text });
+  const token = await resolveToken(config);
+  const client = new WebClient(token);
+  const result = await client.chat.postMessage({ channel, text });
 
   return { ...input, slack: { ok: result.ok, ts: result.ts, channel: result.channel } };
 }

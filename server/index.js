@@ -5,6 +5,7 @@ const { runFlow } = require('../engine/runner');
 const { enqueue, size } = require('../engine/queue');
 const { listFlows, getFlow, createFlow, updateFlow, deleteFlow } = require('../db/flows');
 const { createExecution, finishExecution, failExecution, logNode, listExecutions, getExecution } = require('../db/executions');
+const { listCredentials, getCredential, createCredential, updateCredential, deleteCredential } = require('../db/credentials');
 const scheduler = require('../engine/scheduler');
 const { v4: uuidv4 } = require('uuid');
 
@@ -210,6 +211,37 @@ app.delete('/schedules/:id', async (req, res) => {
     scheduler.unregisterSchedule(req.params.id);
     res.json({ deleted: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── Credentials ─────────────────────────────────────────────────────────────
+app.get('/credentials', async (req, res) => {
+  try { res.json(await listCredentials()); } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/credentials/:id', async (req, res) => {
+  try {
+    const c = await getCredential(req.params.id);
+    if (!c) return res.status(404).json({ error: 'Credencial não encontrada' });
+    res.json(c);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/credentials', async (req, res) => {
+  const { name, type, data } = req.body;
+  if (!name) return res.status(400).json({ error: 'Campo "name" obrigatório' });
+  if (!type) return res.status(400).json({ error: 'Campo "type" obrigatório' });
+  try { res.status(201).json(await createCredential({ name, type, data: data || {} })); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/credentials/:id', async (req, res) => {
+  try { res.json(await updateCredential(req.params.id, req.body)); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/credentials/:id', async (req, res) => {
+  try { await deleteCredential(req.params.id); res.json({ deleted: true }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ─── Status da fila ─────────────────────────────────────────────────────────

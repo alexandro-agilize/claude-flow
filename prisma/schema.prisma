@@ -62,3 +62,12 @@ model Schedule {
 
   flow Flow @relation(fields: [flowId], references: [id], onDelete: Cascade)
 }
+
+model Credential {
+  id        String   @id @default(uuid())
+  name      String
+  type      String
+  data      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

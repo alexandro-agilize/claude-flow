@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh auth *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(gh repo *)",
+      "Bash(git branch *)",
+      "Bash(git worktree *)",
+      "Bash(netstat -ano)",
+      "Bash(taskkill *)",
+      "Bash(xargs ls *)",
+      "Bash(python3 -c ' *)",
+      "Bash(node *)",
+      "Skill(update-config)",
+      "Bash(git merge *)",
+      "Bash(git push *)",
+      "Bash(git *)",
+      "Bash(npm list *)",
+      "Bash(xargs grep *)",
+      "Bash(npm run *)",
+      "Bash(docker-compose build *)",
+      "Bash(docker-compose ps *)",
+      "Bash(docker-compose up *)",
+      "Bash(docker-compose logs *)",
+      "Bash(docker-compose down *)",
+      "Bash(curl -s http://localhost:3000/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code} %{content_type}\" http://localhost:3000/)",
+      "Bash(docker exec *)",
+      "WebSearch",
+      "WebFetch(domain:docs.n8n.io)",
+      "WebFetch(domain:n8n.spot)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:community.n8n.io)",
+      "Bash(docker compose *)",
+      "Read(//c/Users/Agilize/**)",
+      "Read(//c/Users/Agilize/Pictures/**)",
+      "Bash(npx prisma *)",
+      "Bash(DATABASE_URL=\"file:./db/claude-flow.db\" npx prisma migrate dev --name add_credentials)",
+      "Bash(docker run *)"
+    ]
+  }
+}

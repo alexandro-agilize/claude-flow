@@ -1,19 +1,34 @@
 const nodemailer = require('nodemailer');
 
-let transporter;
-function getTransporter() {
-  if (!transporter) {
-    transporter = nodemailer.createTransport({
-      host:   process.env.SMTP_HOST || 'smtp.gmail.com',
-      port:   Number(process.env.SMTP_PORT) || 587,
-      secure: Number(process.env.SMTP_PORT) === 465,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
+const transporterCache = {};
+
+async function resolveSmtp(config) {
+  if (config.credentialId) {
+    const prisma = require('../../db/client');
+    const cred = await prisma.credential.findUnique({ where: { id: config.credentialId } });
+    if (!cred) throw new Error(`Credencial "${config.credentialId}" não encontrada`);
+    return JSON.parse(cred.data);
+  }
+  return {
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: Number(process.env.SMTP_PORT) || 587,
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  };
+}
+
+async function getTransporter(config) {
+  const key = config.credentialId || '__env__';
+  if (!transporterCache[key]) {
+    const smtp = await resolveSmtp(config);
+    transporterCache[key] = nodemailer.createTransport({
+      host:   smtp.host || 'smtp.gmail.com',
+      port:   Number(smtp.port) || 587,
+      secure: Number(smtp.port) === 465,
+      auth: { user: smtp.user, pass: smtp.pass },
     });
   }
-  return transporter;
+  return transporterCache[key];
 }
 
 function interpolate(str, data) {
@@ -31,14 +46,16 @@ async function run(config, input) {
 
   if (!to) throw new Error('Email: campo "to" obrigatório');
 
+  const smtp = await resolveSmtp(config);
   const mailOptions = {
-    from: config.from || process.env.SMTP_USER,
+    from: config.from || smtp.user || process.env.SMTP_USER,
     to,
     subject,
     [config.html ? 'html' : 'text']: body,
   };
 
-  const info = await getTransporter().sendMail(mailOptions);
+  const transport = await getTransporter(config);
+  const info = await transport.sendMail(mailOptions);
 
   return { ...input, email: { messageId: info.messageId, to, subject, accepted: info.accepted } };
 }
