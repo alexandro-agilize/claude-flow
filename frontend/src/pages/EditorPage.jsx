@@ -5,7 +5,7 @@ import NodeSidebar from '../components/NodeSidebar';
 import FlowCanvas from '../components/FlowCanvas';
 import ConfigPanel from '../components/ConfigPanel';
 import RunModal from '../components/RunModal';
-import ExecutionPanel from '../components/ExecutionPanel';
+import NodeIOPanel from '../components/NodeIOPanel';
 import { FlowContext } from '../context/FlowContext';
 import { listFlows, getFlow, createFlow, updateFlow, runFlow, getExecution } from '../api';
 import { toReactFlow, fromReactFlow, slugify } from '../utils/flowConverter';
@@ -32,11 +32,9 @@ export default function EditorPage({ initialFlowId }) {
   const [runResult, setRunResult] = useState(null);
   const [toast, setToast] = useState(null);
   const [nodeExecutions, setNodeExecutions] = useState({});
-  const [executionLogs, setExecutionLogs] = useState([]);
-  const [showExecutionPanel, setShowExecutionPanel] = useState(false);
 
   useEffect(() => {
-    listFlows().then((r) => setFlows(r.data)).catch(() => showToast('Erro ao conectar com o servidor', 'error'));
+    listFlows().then(r => setFlows(r.data)).catch(() => showToast('Erro ao conectar com o servidor', 'error'));
   }, []);
 
   useEffect(() => {
@@ -61,13 +59,13 @@ export default function EditorPage({ initialFlowId }) {
       const { nodes: rfNodes, edges: rfEdges } = toReactFlow(flow);
       setNodes(rfNodes); setEdges(rfEdges);
       setCurrentFlowId(flowId); setFlowName(flow.name || flowId);
-      setSelectedNode(null); setNodeExecutions({}); setExecutionLogs([]); setShowExecutionPanel(false);
+      setSelectedNode(null); setNodeExecutions({});
     } catch { showToast('Erro ao carregar flow', 'error'); }
   };
 
   const handleNewFlow = () => {
     setNodes([]); setEdges([]); setCurrentFlowId(null); setFlowName('Novo Flow');
-    setSelectedNode(null); setNodeExecutions({}); setExecutionLogs([]); setShowExecutionPanel(false);
+    setSelectedNode(null); setNodeExecutions({});
   };
 
   const handleSave = async () => {
@@ -87,19 +85,18 @@ export default function EditorPage({ initialFlowId }) {
 
   const executeRun = async (input) => {
     if (!currentFlowId) return;
-    setIsRunning(true); setNodeExecutions({}); setExecutionLogs([]); setShowExecutionPanel(false);
+    setIsRunning(true); setNodeExecutions({});
     try {
       const { data } = await runFlow(currentFlowId, input);
       setRunResult({ success: true, result: data.result });
       if (data.executionId) {
         try {
           const { data: exec } = await getExecution(data.executionId);
-          const logs = exec.logs || [];
-          setExecutionLogs(logs); setShowExecutionPanel(true);
           const execMap = {};
-          logs.forEach((log) => {
+          (exec.logs || []).forEach(log => {
             execMap[log.nodeId] = {
               status: log.status === 'success' ? 'success' : 'error',
+              input:  log.input  ? JSON.parse(log.input)  : null,
               output: log.output ? JSON.parse(log.output) : null,
               error: log.error, durationMs: log.durationMs,
             };
@@ -160,11 +157,18 @@ export default function EditorPage({ initialFlowId }) {
             nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
             onConnect={onConnect} onNodeClick={handleNodeClick} onPaneClick={handlePaneClick} onAddNode={handleAddNode}
           />
-          <ConfigPanel node={selectedNode} onDataChange={handleNodeDataChange} onDelete={handleDeleteNode} />
+          <ConfigPanel
+            node={selectedNode}
+            nodeInput={selectedNode ? nodeExecutions[selectedNode.id]?.input : null}
+            onDataChange={handleNodeDataChange}
+            onDelete={handleDeleteNode}
+          />
         </div>
-        {showExecutionPanel && (
-          <ExecutionPanel executions={executionLogs} onClose={() => setShowExecutionPanel(false)} />
-        )}
+        <NodeIOPanel
+          node={selectedNode}
+          execData={selectedNode ? nodeExecutions[selectedNode.id] : null}
+          onClose={() => setSelectedNode(null)}
+        />
         <RunModal
           isOpen={runModalOpen} onClose={() => { setRunModalOpen(false); setRunResult(null); }}
           onRun={executeRun} isRunning={isRunning} result={runResult}

@@ -21,36 +21,25 @@ const STYLES = {
   'sub-flow':     { color: '#fb923c', icon: '⊞',  label: 'Sub-flow' },
 };
 
-const STATUS_CONFIG = {
-  success: { icon: '✓', color: '#10b981', glow: '#10b98144' },
-  error:   { icon: '✗', color: '#ef4444', glow: '#ef444444' },
-  running: { icon: '◌', color: '#f59e0b', glow: '#f59e0b44' },
+const STATUS = {
+  success: { icon: '✓', color: '#10b981' },
+  error:   { icon: '✗', color: '#ef4444' },
+  running: { icon: '◌', color: '#f59e0b' },
 };
 
-function ConfigPreview({ nodeType, config }) {
-  if (!config || Object.keys(config).length === 0) return null;
-  if (nodeType === 'http' && config.url)
-    return <span className="font-mono truncate">{config.url}</span>;
-  if (nodeType === 'if' && config.condition)
-    return <span className="font-mono truncate">{config.condition}</span>;
-  if (nodeType === 'wait' && config.ms)
-    return <span>{config.ms} ms</span>;
-  if (nodeType === 'code' && config.code)
-    return <span className="font-mono truncate">{config.code.split('\n')[0]}</span>;
-  if (nodeType === 'claude' && config.prompt)
-    return <span className="truncate">{config.prompt.slice(0, 40)}{config.prompt.length > 40 ? '…' : ''}</span>;
-  if (nodeType === 'loop' && config.arrayPath)
-    return <span className="font-mono truncate">{config.arrayPath}</span>;
-  if (nodeType === 'set-variable' && config.name)
-    return <span className="font-mono truncate">{config.name}</span>;
-  if (nodeType === 'email' && config.to)
-    return <span className="truncate">{config.to}</span>;
-  if (nodeType === 'slack' && config.channel)
-    return <span className="font-mono truncate">{config.channel}</span>;
-  if (nodeType === 'postgres' && config.query)
-    return <span className="font-mono truncate">{config.query.split('\n')[0]}</span>;
-  if (nodeType === 'sub-flow' && config.flowId)
-    return <span className="font-mono truncate">{config.flowId}</span>;
+function configSummary(nodeType, config) {
+  if (!config) return null;
+  if (nodeType === 'http')          return config.url;
+  if (nodeType === 'if')            return config.condition;
+  if (nodeType === 'wait')          return config.ms ? `${config.ms} ms` : null;
+  if (nodeType === 'code')          return config.code?.split('\n')[0];
+  if (nodeType === 'claude')        return config.prompt?.slice(0, 45);
+  if (nodeType === 'loop')          return config.arrayPath;
+  if (nodeType === 'set-variable')  return config.name;
+  if (nodeType === 'email')         return config.to;
+  if (nodeType === 'slack')         return config.channel;
+  if (nodeType === 'postgres')      return config.query?.split('\n')[0];
+  if (nodeType === 'sub-flow')      return config.flowId;
   return null;
 }
 
@@ -61,19 +50,32 @@ export default function CustomNode({ id, data, selected }) {
   const s = STYLES[data.nodeType] || STYLES.code;
   const exec = nodeExecutions?.[id];
   const status = exec?.status;
-  const sc = STATUS_CONFIG[status];
+  const sc = STATUS[status];
 
   const isWebhook = data.nodeType === 'webhook';
   const isIf      = data.nodeType === 'if';
   const isSwitch  = data.nodeType === 'switch';
   const cases     = isSwitch ? (Array.isArray(data.config?.cases) ? data.config.cases : []) : [];
 
-  const borderColor = sc ? sc.color : selected ? s.color : hovered ? '#475569' : '#2d3f55';
-  const boxShadow   = sc
-    ? `0 0 0 2px ${sc.glow}, 0 8px 24px rgba(0,0,0,0.5)`
-    : selected
-    ? `0 0 0 2px ${s.color}44, 0 8px 24px rgba(0,0,0,0.5)`
-    : '0 2px 8px rgba(0,0,0,0.4)';
+  const preview = status === 'success' && exec?.output
+    ? JSON.stringify(exec.output).slice(0, 55)
+    : status === 'error'
+    ? exec?.error?.slice(0, 55)
+    : configSummary(data.nodeType, data.config);
+
+  const previewColor = status === 'success' ? '#34d399'
+    : status === 'error' ? '#f87171'
+    : '#475569';
+
+  const borderColor = sc ? sc.color
+    : selected ? `${s.color}cc`
+    : hovered ? '#2d3748'
+    : '#1a2035';
+
+  const shadow = selected
+    ? `0 0 0 2px ${s.color}33, 0 8px 32px rgba(0,0,0,0.6)`
+    : sc ? `0 0 0 2px ${sc.color}33, 0 4px 16px rgba(0,0,0,0.5)`
+    : '0 2px 8px rgba(0,0,0,0.5)';
 
   return (
     <div
@@ -81,103 +83,104 @@ export default function CustomNode({ id, data, selected }) {
       onMouseLeave={() => setHovered(false)}
       style={{ position: 'relative', userSelect: 'none' }}
     >
-      {/* Hover toolbar — n8n style */}
-      <NodeToolbar isVisible={hovered || selected} position={Position.Top} offset={6}>
-        <div className="flex items-center gap-1 px-1.5 py-1 rounded-lg"
-          style={{ background: '#0f172a', border: '1px solid #334155', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+      <NodeToolbar isVisible={hovered || selected} position={Position.Top} offset={5}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '4px 6px', borderRadius: 8, background: '#0f172a', border: '1px solid #1e293b', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
           <button
             onClick={() => onDuplicateNode(id)}
-            className="text-[11px] px-2 py-1 rounded transition-colors text-slate-400 hover:text-slate-100 hover:bg-slate-700"
-            title="Duplicar"
-          >
-            ⎘ Duplicar
-          </button>
-          <div className="w-px h-4" style={{ background: '#334155' }} />
+            style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: 'none', background: 'transparent', color: '#64748b', cursor: 'pointer' }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#1e293b'; e.currentTarget.style.color = '#e2e8f0'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#64748b'; }}
+          >⎘ Duplicar</button>
+          <div style={{ width: 1, height: 14, background: '#1e293b' }} />
           <button
             onClick={() => onDeleteNode(id)}
-            className="text-[11px] px-2 py-1 rounded transition-colors text-slate-400 hover:text-red-400 hover:bg-red-500/10"
-            title="Deletar (Delete)"
-          >
-            ✕ Deletar
-          </button>
+            style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: 'none', background: 'transparent', color: '#64748b', cursor: 'pointer' }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#450a0a'; e.currentTarget.style.color = '#f87171'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#64748b'; }}
+          >✕ Deletar</button>
         </div>
       </NodeToolbar>
 
-      {/* Node card */}
-      <div
-        className="rounded-xl transition-all"
-        style={{
-          background: '#1a2740',
-          border: `1.5px solid ${borderColor}`,
-          minWidth: 190,
-          maxWidth: 240,
-          boxShadow,
-          transition: 'border-color 0.15s, box-shadow 0.15s',
-        }}
-      >
+      {/* Node card — n8n compact style */}
+      <div style={{
+        background: '#13131f',
+        border: `1.5px solid ${borderColor}`,
+        borderRadius: 10,
+        minWidth: 200,
+        maxWidth: 248,
+        boxShadow: shadow,
+        transition: 'border-color 0.12s, box-shadow 0.12s',
+        overflow: 'hidden',
+      }}>
+        {/* Colored top accent line */}
+        <div style={{ height: 2, background: s.color, opacity: 0.7 }} />
+
         {!isWebhook && (
           <Handle type="target" position={Position.Top}
-            style={{ background: '#334155', borderColor: '#475569', width: 10, height: 10, top: -6 }} />
+            style={{ background: '#1e293b', borderColor: '#334155', width: 10, height: 10, top: -5 }} />
         )}
 
-        {/* Header */}
-        <div
-          className="px-3 py-2.5 flex items-center gap-2.5 rounded-t-[10px]"
-          style={{ borderBottom: `1px solid ${s.color}22`, background: `linear-gradient(135deg, ${s.color}18, ${s.color}08)` }}
-        >
-          <div
-            className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-sm font-bold"
-            style={{ background: `${s.color}22`, color: s.color }}
-          >
+        {/* Main row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 10px' }}>
+          {/* Icon */}
+          <div style={{
+            width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+            background: `${s.color}18`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 14, fontWeight: 700, color: s.color,
+          }}>
             {s.icon}
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider leading-none mb-0.5">{s.label}</p>
-            <p className="text-sm font-semibold text-slate-100 truncate leading-tight">{data.label}</p>
+
+          {/* Label */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 9, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.09em', margin: 0, lineHeight: 1 }}>
+              {s.label}
+            </p>
+            <p style={{ fontSize: 12, color: '#cbd5e1', fontWeight: 600, margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.2 }}>
+              {data.label}
+            </p>
           </div>
-          {/* Execution status badge */}
+
+          {/* Status badge */}
           {sc && (
-            <div
-              className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-              style={{ background: `${sc.color}22`, color: sc.color, border: `1px solid ${sc.color}44` }}
-              title={status === 'running' ? 'Executando…' : status === 'success' ? `${exec?.durationMs}ms` : exec?.error}
-            >
-              {status === 'running' ? <span className="animate-spin inline-block">◌</span> : sc.icon}
+            <div style={{
+              width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
+              background: `${sc.color}18`, color: sc.color,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 10, fontWeight: 700, border: `1px solid ${sc.color}44`,
+            }}>
+              {status === 'running' ? <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite' }}>◌</span> : sc.icon}
             </div>
           )}
         </div>
 
-        {/* Body — config preview or execution output */}
-        <div className="px-3 py-2 min-h-[30px]">
-          {status === 'success' && exec?.output ? (
-            <p className="text-[10px] text-emerald-400 truncate font-mono">
-              {JSON.stringify(exec.output).slice(0, 60)}
+        {/* Preview strip */}
+        {preview && (
+          <div style={{
+            borderTop: `1px solid ${s.color}12`,
+            padding: '4px 10px 6px',
+            background: '#0c0c18',
+          }}>
+            <p style={{ fontSize: 10, color: previewColor, fontFamily: 'monospace', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: 0.85 }}>
+              {preview}
             </p>
-          ) : status === 'error' ? (
-            <p className="text-[10px] text-red-400 truncate">{exec?.error}</p>
-          ) : (
-            <p className="text-[11px] text-slate-500 truncate">
-              <ConfigPreview nodeType={data.nodeType} config={data.config} />
-            </p>
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* IF branches label */}
+        {/* IF branch labels */}
         {isIf && (
-          <div className="flex justify-between text-[10px] px-3 pb-2"
-            style={{ borderTop: '1px solid #1e293b' }}>
-            <span className="font-semibold" style={{ color: '#10b981' }}>✓ true</span>
-            <span className="font-semibold" style={{ color: '#ef4444' }}>✗ false</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 10px 5px', borderTop: `1px solid ${s.color}12`, background: '#0c0c18' }}>
+            <span style={{ fontSize: 9, fontWeight: 700, color: '#10b981' }}>✓ true</span>
+            <span style={{ fontSize: 9, fontWeight: 700, color: '#ef4444' }}>✗ false</span>
           </div>
         )}
 
         {/* Switch case labels */}
         {isSwitch && cases.length > 0 && (
-          <div className="flex flex-wrap gap-1 px-2 pb-2 pt-1 justify-center"
-            style={{ borderTop: '1px solid #1e293b' }}>
-            {cases.map((c) => (
-              <span key={c} className="text-[9px] px-1.5 py-0.5 rounded font-semibold"
-                style={{ background: '#f9731618', color: '#f97316' }}>{c}</span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, padding: '3px 8px 5px', borderTop: `1px solid ${s.color}12`, background: '#0c0c18', justifyContent: 'center' }}>
+            {cases.map(c => (
+              <span key={c} style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: '#f9731618', color: '#fb923c', fontWeight: 600 }}>{c}</span>
             ))}
           </div>
         )}
@@ -185,23 +188,19 @@ export default function CustomNode({ id, data, selected }) {
         {/* Output handles */}
         {!isIf && !isSwitch && (
           <Handle type="source" position={Position.Bottom}
-            style={{ background: '#334155', borderColor: '#475569', width: 10, height: 10, bottom: -6 }} />
+            style={{ background: '#1e293b', borderColor: '#334155', width: 10, height: 10, bottom: -5 }} />
         )}
         {isIf && (
           <>
             <Handle type="source" position={Position.Bottom} id="true"
-              style={{ left: '28%', background: '#10b981', borderColor: '#10b981', width: 10, height: 10, bottom: -6 }} />
+              style={{ left: '28%', background: '#10b981', borderColor: '#10b981', width: 10, height: 10, bottom: -5 }} />
             <Handle type="source" position={Position.Bottom} id="false"
-              style={{ left: '72%', background: '#ef4444', borderColor: '#ef4444', width: 10, height: 10, bottom: -6 }} />
+              style={{ left: '72%', background: '#ef4444', borderColor: '#ef4444', width: 10, height: 10, bottom: -5 }} />
           </>
         )}
         {isSwitch && cases.map((c, i) => (
           <Handle key={c} type="source" position={Position.Bottom} id={String(c)}
-            style={{
-              left: `${((i + 1) / (cases.length + 1)) * 100}%`,
-              background: '#f97316', borderColor: '#f97316', width: 10, height: 10, bottom: -6,
-            }}
-          />
+            style={{ left: `${((i + 1) / (cases.length + 1)) * 100}%`, background: '#f97316', borderColor: '#f97316', width: 10, height: 10, bottom: -5 }} />
         ))}
       </div>
     </div>

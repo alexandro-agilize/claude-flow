@@ -88,7 +88,33 @@ const inputStyle = {
   color: '#e2e8f0',
 };
 
-export default function ConfigPanel({ node, onDataChange, onDelete }) {
+function InputFieldChip({ path }) {
+  const [copied, setCopied] = useState(false);
+  const ref = `{{input.${path}}}`;
+  const copy = () => {
+    navigator.clipboard.writeText(ref).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1400);
+  };
+  return (
+    <button
+      onClick={copy}
+      title={`Copiar ${ref}`}
+      style={{
+        fontSize: 9, padding: '1px 5px', borderRadius: 3,
+        background: copied ? '#10b98112' : '#0a0a18',
+        border: `1px solid ${copied ? '#10b981' : '#1e293b'}`,
+        color: copied ? '#10b981' : '#38bdf8',
+        cursor: 'pointer', fontFamily: 'monospace',
+        transition: 'all 0.12s',
+      }}
+    >
+      {copied ? '✓' : path}
+    </button>
+  );
+}
+
+export default function ConfigPanel({ node, nodeInput, onDataChange, onDelete }) {
   const [label, setLabel] = useState('');
   const [config, setConfig] = useState({});
   const [credentials, setCredentials] = useState([]);
@@ -158,6 +184,16 @@ export default function ConfigPanel({ node, onDataChange, onDelete }) {
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3" onKeyDown={handleKeyDown}>
+        {/* Available input fields */}
+        {nodeInput && Object.keys(nodeInput).length > 0 && (
+          <div style={{ background: '#0a0a18', border: '1px solid #1e293b', borderRadius: 6, padding: '7px 9px' }}>
+            <p className="text-[9px] font-bold uppercase tracking-wider mb-1.5" style={{ color: '#1e40af' }}>← campos do input</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+              {Object.keys(nodeInput).map(k => <InputFieldChip key={k} path={k} />)}
+            </div>
+          </div>
+        )}
+
         <div>
           <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Nome</label>
           <input
